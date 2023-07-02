@@ -10,6 +10,30 @@
 - 不使用Module：后期全部include到一块使用
 """
 
+# 目标 #
+
+"""🆕抽象出一个「NARS目标」
+
+主要功能：记录NARS的目标名字，方便后续派发识别
+"""
+struct NARSGoal
+    name::String
+end
+
+nameof(ng::NARSGoal) = ng.name
+
+string(op::NARSGoal)::String = nameof(op)
+
+repr(op::NARSGoal)::String = "<NARS Goal $(string(op))!>"
+
+"控制在show中的显示形式"
+@redefine_show_to_to_repr ng::NARSGoal
+
+"快捷定义方式"
+macro NARSGoal_str(str::String)
+    :(NARSGoal($str))
+end
+
 
 # 操作 #
 
@@ -24,14 +48,17 @@ struct NARSOperation
     name::String
 end
 
-string(op::NARSOperation)::String = op.name
+nameof(op::NARSOperation) = op.name
+
+string(op::NARSOperation)::String = nameof(op)
 
 repr(op::NARSOperation)::String = "<NARS Operation ^$(string(op))>"
 
 "控制在show中的显示形式"
-Base.show(io::IO, op::NARSOperation) = print(io, repr(op))
+@redefine_show_to_to_repr op::NARSOperation
 
-macro narsop_str(str::String)
+"快捷定义方式"
+macro NARSOperation_str(str::String)
     :(NARSOperation($str))
 end
 
@@ -65,16 +92,16 @@ string(np::NARSPerception)::String = "<{$(np.subject)} -> [$(np.adjective)]>"
 
 repr(np::NARSPerception)::String = "<NARS Perception: {$(np.subject)} -> [$(np.adjective)]>"
 
-"控制在show中的显示代码"
-Base.show(io::IO, np::NARSPerception) = print(io, repr(np))
+"控制在show中的显示方式"
+@redefine_show_to_to_repr np::NARSPerception
 
 "使用宏快速构造NARS感知"
-macro narspe_str(adjective::String, subject::String)
+macro NARSPerception_str(adjective::String, subject::String)
     :(NARSPerception($subject, $adjective))
 end
 
 "无「主语」参数：自动缺省（构造「自身感知」）"
-macro narspe_str(adjective::String)
+macro NARSPerception_str(adjective::String)
     :(NARSPerception($adjective)) # 注意：不能用上面的宏来简化，右边的flag用$插值会出问题
 end
 
@@ -114,5 +141,5 @@ string(ns::NARSSenser)::String = "<NARS Senser -$(ns.enabled ? "×" : "-")> $(ns
 repr(ns::NARSSenser)::String = string(ns)
 
 "控制在show中的显示代码"
-Base.show(io::IO, ns::NARSSenser) = print(io, repr(ns))
+@redefine_show_to_to_repr ns::NARSSenser
 
