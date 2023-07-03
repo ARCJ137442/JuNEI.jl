@@ -136,7 +136,7 @@ function (ns::NARSSenser)(args...; kwargs...)::Vector{NARSPerception}
     return NARSPerception[] # 否则返回空数组
 end
 
-string(ns::NARSSenser)::String = "<NARS Senser -$(ns.enabled ? "×" : "-")> $(ns.perceive_hook)>"
+string(ns::NARSSenser)::String = "<NARS Senser -$(ns.enabled ? "-" : "×")> $(ns.perceive_hook)>"
 
 repr(ns::NARSSenser)::String = string(ns)
 

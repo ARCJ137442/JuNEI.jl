@@ -240,6 +240,8 @@ begin "NARSCmdline"
     function terminate!(cmd::NARSCmdline)::Nothing
         println("NARSCmdline terminate!")
         clear_cached_input!(cmd) # 清空而不置空（不支持nothing）
+        # TODO：杀进程
+        cmd.process = nothing
         @super NARSProgram terminate!(cmd) # 构造先父再子，析构先子再父
     end
     
