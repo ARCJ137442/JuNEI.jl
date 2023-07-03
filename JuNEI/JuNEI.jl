@@ -12,7 +12,9 @@ include("Console.jl")
     - Elements
     - Program
         - CIN_Implements
-            - CIN_Register
+            - CIN_Templetes
+                - CIN_Register_Templete
+            - CIN_Register_Implement
     - Agent
     - Console
 """

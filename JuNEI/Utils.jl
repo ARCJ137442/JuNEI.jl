@@ -11,6 +11,44 @@ end
 
 (k::Integer) * (ex::Expr) = ex * k
 
+"反转字典"
+macro reverse_dict_content(name::Symbol)
+    :(
+        v => k
+        for (k,v) in $name
+    )
+end
+
+"【TODO 实现失败】软判断「是否空值」（避免各种报错）：有无属性→有无定义→是否为空"
+macro softed_isnothing_property(object::Symbol, property_name::QuoteNode)
+    # 「作为一个符号导入的符号」property_name是一行「输出一个符号的Quote代码」如「:(:property))」
+    # 报错——调用显示object对应的变量「未定义」：错误解读「局部变量名」为「全局变量名」，如「cmd→Main.cmd」❎
+    :(
+        hasproperty($object, $property_name) && 
+        isdefined($object, $property_name) && 
+        isnothing(getproperty($object, $property_name)) # $object.$property_name
+    ) # 「property_name」作为符号直接用
+end
+
+"【用于调试】判断「期望出错」（仿官方库show语法）"
+macro exceptedError(exs...)
+    Expr(:block, [ # 生成一个block，并使用列表推导式自动填充args
+        quote
+            local e = nothing
+            try
+                $(esc(ex))
+            catch e
+                println("Excepted error!")
+                @error e
+            end
+            # 不能用条件语句，否则局部作用域访问不到ex；也不能去掉这里的双重$引用
+            isnothing(e) && "Error: No error expected in code $($(esc(ex)))!" |> error
+            !isnothing(e)
+        end
+        for ex in exs
+    ]...) # 别忘展开
+end
+
 #=
     macro C() # 注：这样也可以实现「代码拼接」，但效率不高
         (@macroexpand @A) + (@macroexpand @B)
@@ -104,7 +142,7 @@ end
 # 📌在使用invoke强制派发到超类实现后，在「超类实现」的调用里，还能再派发回本类的实现中（见clear_cached_input!）
 """用于复现类似Python中的「super()」语法（"一组符号" 直接使用Tuple{各组符号的Type}）"""
 macro super(super_class::Expr, f_expr::Expr)
-    @show super_class f_expr
+    # @show super_class f_expr
     :(
         invoke(
             $(f_expr.args[1]), # 第一个被调用函数名字
