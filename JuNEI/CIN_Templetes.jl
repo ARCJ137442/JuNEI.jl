@@ -1,12 +1,6 @@
-"""现有库所支持之CIN(Computer Implement of NARS)的注册项
-注册在目前接口中可用的CIN类型
-- OpenNARS(Java)
-- ONA(C/C++)
-- Python(Python)
-- 【未来还可更多】
+"""现有库所支持之CIN(Computer Implement of NARS)的注册项（结构）
+构造CIN注册项的数据结构
 """
-
-include("Elements.jl")
 
 begin "NARSType"
     
@@ -40,13 +34,13 @@ begin "NARSType"
 
 end
 
-begin "NARSSentenceTemplete"
+begin "CINRegister"
     
     "表示「自我」的对象"
     TERM_SELF::String = "{$SUBJECT_SELF}"
 
-    """NARSSentenceTemplete
-    注册与相应类型所对应的模板
+    """CINRegister
+    注册与相应类型所对应的模板、处理函数
     - 对应PyNEI中的「TEMPLETE_语句」常量集
     - 使用「字符串函数」封装模板
         - 因：Julia对「格式化字符串」支持不良
@@ -54,8 +48,22 @@ begin "NARSSentenceTemplete"
         - 使用方法：直接封装一个「字符串生成函数」
             - 输入：若无特殊说明，则为对应的一个参数
             - 输出：字符串
+    - 亦封装「从『操作字符串』中截取操作」的部分
     """
-    struct NARSSentenceTemplete
+    struct CINRegister
+
+        #= 程序特性 =#
+
+        "对应PyNEI中的「TYPE_CIN_DICT」，存储Type以达到索引「目标类构造函数」的目的"
+        program_type::Type
+
+        "对应PyNEI中被各个类实现的「launch_program」函数"
+        exec_cmds::Function # executable_path::String -> Tuple{Cmd,Vector{String}}（可执行文件路径→(执行用Cmd,cmd命令序列)）
+        
+        "对应PyNEI中被各个类实现的「catch_operation_name」函数"
+        operation_name_catch::Function # line::String -> String/Nothing（in输出语句行，out操作名/Nothing）
+
+        #= 语句模板 =#
 
         "指示「某个对象有某个状态」"
         sense::Function # NARSPerception
@@ -69,39 +77,12 @@ begin "NARSSentenceTemplete"
         "指示「自我需要达到某个目标」"
         put_goal::Function # NARSGoal，其中以第二参数的形式包含「is_negative」即「负向目标」
 
-        # "goal的负向版本"
-        # put_goal_negative::Function
-
         "指示「某目标被实现」（奖励）"
         praise::Function # NARSGoal
 
         "指示「某目标未实现」（惩罚）"
         punish::Function # NARSGoal
-        
+
     end
 
-end
-    
-# 「具体注册」交给下面的jl：抽象功能与具体注册分离
-include("CIN_Register_Templete.jl")
-
-begin "注册后的一些方法（依赖注册表）"
-
-    "检验NARSType的有效性：是否已被注册"
-    isvalid(nars_type::NARSType)::Bool = nars_type ∈ ALL_CIN_TYPES
-
-    "Type→SentenceTemplete（依赖字典）"
-    function Base.convert(::Core.Type{NARSSentenceTemplete}, type::NARSType)::NARSSentenceTemplete
-        NAL_TEMPLETE_DICT[type]
-    end
-
-    "名称→Type→SentenceTemplete（依赖字典）"
-    function Base.convert(::Core.Type{NARSSentenceTemplete}, type_name::String)::NARSSentenceTemplete
-        NAL_TEMPLETE_DICT[NARSType(type_name)]
-    end
-
-    "名称→NAL语句模板（直接用宏调用）（依赖字典）"
-    macro NARSSentenceTemplete_str(type_name::String)
-        :($(Base.convert(NARSSentenceTemplete, type_name))) # 与其运行时报错，不如编译时就指出来
-    end # TODO：自动化「用宏生成宏？」
 end
