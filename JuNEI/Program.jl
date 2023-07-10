@@ -20,15 +20,19 @@ begin "NARSProgram" # 使用这个「代码块」将功能相近的代码封装�
     """
     abstract type NARSProgram end
     
-    # 抽象属性声明：使用外部构造方法
+    "抽象属性声明：使用外部构造方法"
     function NARSProgram(
         type::NARSType,
         out_hook::Union{Function,Nothing}=nothing,
-        inference_cycle_frequency::Integer=1
         )
         @debug "Construct: NARSProgram with $out_hook, $type"
-        return new(out_hook, type, inference_cycle_frequency) # 返回所涉及类的一个实例（通用构造函数名称）
+        return new(out_hook, type) # 返回所涉及类的一个实例（通用构造函数名称）
     end
+
+    "复制一份副本（所有变量），但不启动"
+    copy(program::NARSProgram)::NARSProgram = copy(program)
+    "similar类似copy"
+    similar(program::NARSProgram)::NARSProgram = copy(program)
 
     # 析构函数
     function finalize(program::NARSProgram)::Nothing
@@ -66,9 +70,7 @@ begin "NARSProgram" # 使用这个「代码块」将功能相近的代码封装�
     getNARSType(program::NARSProgram)::NARSType = program.type
 
     "通过CIN直接获得「NARS语句模板」（convert容易忘）"
-    function getRegister(program::NARSProgram)::CINRegister
-        convert(CINRegister, program) # 通过convert实现
-    end
+    getRegister(program::NARSProgram)::CINRegister = convert(CINRegister, program) # 通过convert实现
     
     "（API）添加输入（NAL语句字符串）：对应PyNEI的「write_line」"
     put!(program::NARSProgram, input::String) = @abstractMethod
@@ -76,12 +78,12 @@ begin "NARSProgram" # 使用这个「代码块」将功能相近的代码封装�
     "针对「可变长参数」的多项输入" # 不强制inputs的类型
     function put!(program::NARSProgram, input1, input2, inputs...) # 不强制Nothing
         # 使用多个input参数，避免被派发到自身
-        put!(program, [input1,input2,inputs...])
+        put!(program, (input1, input2, inputs...))
     end
 
     "针对「可变长参数」的多项输入" # 不强制inputs的类型
-    function put!(program::NARSProgram, inputs::Vector) # 不强制Nothing
-        # 使用多个input参数，避免被派发到自身
+    function put!(program::NARSProgram, inputs::Union{Vector,Tuple}) # 不强制Nothing
+        # 注意：Julia可变长参数存储在Tuple而非Vector中
         for input ∈ inputs
             put!(program, input)
         end
@@ -89,74 +91,7 @@ begin "NARSProgram" # 使用这个「代码块」将功能相近的代码封装�
     
     "（API）【立即？】增加NARS的工作循环：对应PyNEI的「add/update_inference_cycle」"
     cycle!(::NARSProgram, steps::Integer)::Nothing = @abstractMethod
-    "无参数则是更新（使用属性「inference_cycle_frequency」）"
-    cycle!(program::NARSProgram)::Nothing = 
-        cycle!(program, program.inference_cycle_frequency)
-    
-    # 目标
-    
-    "添加目标（派发NARSGoal）"
-    function put!(program::NARSProgram, goal::NARSGoal, is_negative::Bool)
-        put!(
-            program,
-            getRegister(
-                program # 从模板处获取
-            ).put_goal(goal, is_negative)
-        )
-    end
-    
-    "奖励目标" # TODO: 这里的所谓「奖惩/Babble」似乎不适合在一个「程序」上体现，或许更多要移动到Agent里面去？
-    function praise!(program::NARSProgram, goal::NARSGoal)
-        put!(
-            program,
-            getRegister(
-                program # 从模板处获取
-            ).praise(goal)
-        )
-    end
-    
-    "惩罚目标"
-    function punish!(program::NARSProgram, goal::NARSGoal) # 不强制Nothing
-        put!(
-            program,
-            getRegister(
-                program # 从模板处获取
-            ).punish(goal)
-        )
-    end
-    
-    # 感知
-
-    function put!(program::NARSProgram, np::NARSPerception)
-        put!(
-            program,
-            getRegister(
-                program # 从模板处获取
-            ).sense(np)
-        )
-    end
-
-    # 操作
-
-    "添加无意识操作（用NARSOperation重载put!，对应PyNEI的put_unconscious_operation）" # TODO：是否可以将其和put!整合到一起？（put一个操作）
-    function put!(program::NARSProgram, op::NARSOperation)
-        put!(
-            program,
-            getRegister(
-                program # 从模板处获取
-            ).babble(op) # 注意：无需判断了，只需要「输入无效」就能实现同样效果
-        )
-    end
-    
-    "添加「操作注册」：让NARS「知道」有这个操作（对应PyNEI的register_basic_operation）"
-    function register!(program::NARSProgram, op::NARSOperation)
-        put!(
-            program,
-            getRegister(
-                program # 从模板处获取
-            ).register(op)
-        )
-    end
+    # 【20230706 10:11:04】Program不再内置「inference_cycle_frequency」，由调用者自行决定（派发cycle!）
     
 end
 
@@ -175,7 +110,6 @@ begin "NARSCmdline"
         
         "外接钩子"
         out_hook::Union{Function,Nothing}
-        inference_cycle_frequency::Integer
 
         # 独有属性 #
 
@@ -193,21 +127,28 @@ begin "NARSCmdline"
             type::NARSType,
             executable_path::String, 
             out_hook::Union{Function, Nothing} = nothing, 
-            inference_cycle_frequency::Integer = 1, 
             cached_inputs::Vector{String} = String[] # Julia动态初始化默认值（每调用就计算一次，而非Python中只计算一次）
             )
             new(
                 type,
                 out_hook, 
-                inference_cycle_frequency, 
                 executable_path, 
                 cached_inputs #=空数组=#
             )
         end
-
     end
+
+    "实现：复制一份副本（所有变量），但不启动"
+    copy(cmd::NARSCmdline)::NARSCmdline = NARSCmdline(
+        cmd.type,
+        cmd.executable_path,
+        cmd.out_hook,
+        copy(cached_inputs), # 可变数组需要复制
+    )
+    "similar类似copy"
+    similar(cmd::NARSCmdline)::NARSCmdline = copy(cmd)
     
-    # 📝对引入「公共属性」并不看好
+    # 📝Julia对引入「公共属性」并不看好
     
     "存活依据：主进程非空"
     isAlive(cmd::NARSCmdline)::Bool = 
@@ -233,7 +174,6 @@ begin "NARSCmdline"
         startup_cmds::Tuple{Cmd,Vector{String}} = cmd.executable_path |> (cmd |> CINRegister).exec_cmds
 
         launch_cmd::Cmd = startup_cmds[1]
-        @show launch_cmd
 
         @async begin # 开始异步进行操作
             try
@@ -271,9 +211,8 @@ begin "NARSCmdline"
     
     "从stdout读取输出"
     function async_read_out(cmd::NARSCmdline)
+        line::String = "" # Julia在声明值类型后必须初始化
         try # 注意：Julia中使用@async执行时，无法直接显示与跟踪报错
-            @debug async_read_out
-            line::String = "" # Julia在声明值类型后必须初始化
             while isAlive(cmd)
                 line = readline(cmd.process)
                 !isempty(line) && use_hook(
@@ -283,7 +222,7 @@ begin "NARSCmdline"
         catch e
             @error e
         end
-        @debug "loop end!"
+        "loop end!" |> println
     end
 
     # 📌在使用super调用超类实现后，还能再派发回本类的实现中（见clear_cached_input!）
@@ -318,7 +257,7 @@ begin "NARSCmdline"
     
     "（慎用）【独有】命令行（直接写入）"
     function add_to_cmd!(cmd::NARSCmdline, input::String)
-        @info "Added: $input"
+        # @info "Added: $input" # 【20230710 15:52:13】Add目前工作正常
         println(cmd.process.in, input) # 使用println输入命令
     end
     

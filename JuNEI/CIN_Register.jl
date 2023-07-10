@@ -24,15 +24,25 @@ Dict(
 
         #= 操作捕捉
         例句：
-            EXE: $1.00;0.99;1.00$ ^Forward([{SELF}])=null
+            EXE: $0.10;0.00;0.08$ ^pick([{SELF}, {t002}])=null
+            EXE: $0.12;0.00;0.55$ ^want([{SELF}, <{SELF} --> [succeed]>, TRUE])=[$0.9000;0.9000;0.9500$ <{SELF} --> [succeed]>! %1.00;0.90%]
+                TODO: 正则截取成了「succeed]>! %1.00;0.90%」
         =#
         (line::String) -> begin
             if contains(line, "EXE: ")
                 # 使用正则表达式r"表达式"与「match」字符串方法，并使用括号选定其中返回的第一项
-                m = match(r"\^(\w+)",line)
-                return isnothing(m) ? nothing : m[1] # 避免「假冒语句」匹配出错
+                m = match(r"\^(\w+)\((.*)\)", line)
+                # 使用isnothing避免「假冒语句」匹配出错
+                if !isnothing(m) && length(m) > 1
+                    
+                    return NARSOperation(
+                        m[1], # 匹配名称
+                        split(m[2][2:end-1], r" *\, *") .|> String |> Tuple{Vararg{String}}
+                        # ↑匹配参数（先用括号定位，再去方括号，最后逗号分隔）
+                    )
+                end
             end
-            nothing
+            EMPTY_Operation
         end,
         
         # 感知
@@ -75,14 +85,17 @@ Dict(
         #= 操作捕捉
         例句：
             EXE ^right executed with args
+            ^deactivate executed with args
+            
+            # TODO：找到ONA中「带参操作」的例句
         =#
         (line::String) -> begin
-            if contains(line, "EXE")
+            if contains(line, "executed")
                 # 使用正则表达式r"表达式"与「match」字符串方法，并使用括号选定其中返回的第一项
-                m = match(r"\^(\w+)",line) # 使用「\w」匹配任意数字、字母、下划线
-                return isnothing(m) ? nothing : m[1]
+                m = match(r"\^(\w+)", line) # 使用「\w」匹配任意数字、字母、下划线
+                !isnothing(m) && return NARSOperation(m[1])
             end
-            nothing
+            EMPTY_Operation
         end,
         
         # 感知
@@ -123,14 +136,15 @@ Dict(
         #= 操作捕捉
         例句：
             EXE: ^left based on desirability: 0.9
+            # TODO：找到NARS Python中「带参操作」的例句
         =#
         (line::String) -> begin
             if contains(line, "EXE: ")
                 # 使用正则表达式r"表达式"与「match」字符串方法，并使用括号选定其中返回的第一项
-                m = match(r"\^(\w+)",line)
-                return isnothing(m) ? nothing : m[1]
+                m = match(r"\^(\w+)", line)
+                !isnothing(m) && return NARSOperation(m[1])
             end
-            nothing
+            EMPTY_Operation
         end,
         
         # 感知

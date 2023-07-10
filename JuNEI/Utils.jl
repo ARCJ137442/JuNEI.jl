@@ -49,6 +49,12 @@ macro exceptedError(exs...)
     ]...) # 别忘展开
 end
 
+"复现Python的「input」函数"
+function input(prompt::String="")::String
+    print(prompt)
+    readline()
+end
+
 #=
     macro C() # 注：这样也可以实现「代码拼接」，但效率不高
         (@macroexpand @A) + (@macroexpand @B)

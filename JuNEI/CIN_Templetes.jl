@@ -60,28 +60,28 @@ begin "CINRegister"
         "对应PyNEI中被各个类实现的「launch_program」函数"
         exec_cmds::Function # executable_path::String -> Tuple{Cmd,Vector{String}}（可执行文件路径→(执行用Cmd,cmd命令序列)）
         
-        "对应PyNEI中被各个类实现的「catch_operation_name」函数"
-        operation_name_catch::Function # line::String -> String/Nothing（in输出语句行，out操作名/Nothing）
+        "对应PyNEI中被各个类实现的「catch_operation」函数（现需要直接从字符串中获得操作）"
+        operation_catch::Function # line::String -> NARSOperation（包含「空操作」）
 
         #= 语句模板 =#
 
         "指示「某个对象有某个状态」"
-        sense::Function # NARSPerception
+        sense::Function # NARSPerception -> String
         
         "指示「自我有一个可用的（基本）操作」（操作注册）"
-        register::Function # NARSOperation
+        register::Function # NARSOperation -> String
         
         "指示「自我正在执行某操作」（无意识操作 Babble）"
-        babble::Function # NARSOperation
+        babble::Function # NARSOperation -> String
 
         "指示「自我需要达到某个目标」"
-        put_goal::Function # NARSGoal，其中以第二参数的形式包含「is_negative」即「负向目标」
+        put_goal::Function # NARSGoal -> String，其中以第二参数的形式包含「is_negative」即「负向目标」
 
         "指示「某目标被实现」（奖励）"
-        praise::Function # NARSGoal
+        praise::Function # NARSGoal -> String
 
         "指示「某目标未实现」（惩罚）"
-        punish::Function # NARSGoal
+        punish::Function # NARSGoal -> String
 
     end
 

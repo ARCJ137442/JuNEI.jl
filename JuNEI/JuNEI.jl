@@ -2,8 +2,9 @@
 include("Utils.jl")
 include("Elements.jl")
 include("Program.jl")
-include("Agent.jl")
 include("Console.jl")
+include("Agent.jl")
+include("Environment.jl")
 
 """
 文件include结构：
@@ -15,8 +16,9 @@ include("Console.jl")
             - CIN_Templetes
                 - CIN_Register_Templete
             - CIN_Register_Implement
-    - Agent
     - Console
+    - Agent
+    - Environment
 """
 
 VERSION_JuNEI::VersionNumber = v"0.0.1"

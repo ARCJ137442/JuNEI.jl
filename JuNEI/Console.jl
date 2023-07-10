@@ -1,8 +1,12 @@
+"""从CIN到交互的示例界面：NARS控制台
+- 🎯面向用户命令行输入（手动输入NAL语句）
+- 📄内置NARSProgram
+- 🔬展示「如何封装CIN」的简单例子
+"""
 mutable struct NARSConsole
     program::NARSProgram
     input_prompt::String
     launched::Bool # 用于过滤「无关信息」
-    out_hook::Function # 用于闭包检测「是否启动」
 
     NARSConsole(
         type::NARSType, 
@@ -14,20 +18,19 @@ mutable struct NARSConsole
             NARSCmdline(
                 type, # 传入Program
                 executable_path, # NARSCmdline
-                out_hook_console, # 传入Program
+                identity, # 占位符
             ),
             input_prompt, # 留存prompt
             false, # 默认未启动
-            identity, # 占位符
         )
         # 通过更改内部Program的钩子，实现「闭包传输」类似PyNEI中「self」参数的目的
-        out_hook!(console.program, line -> out_hook_console(console, line))
+        out_hook!(console.program, line -> use_hook(console, line))
         return console
     end
 end
 
 "默认输出钩子（包括console对象「自身」）"
-function out_hook_console(console::NARSConsole, line::String)
+function use_hook(console::NARSConsole, line::String)
     console.launched && println(line)
 end
 
