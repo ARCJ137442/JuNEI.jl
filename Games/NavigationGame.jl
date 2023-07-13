@@ -5,7 +5,7 @@ begin "游戏逻辑"
         current_coordinates::PointType
         direction_vec::Vector{AbstractString}
 
-        env_link::NARSEnvironment
+        env_link::Environment
     end
 
     "曼哈顿距离"

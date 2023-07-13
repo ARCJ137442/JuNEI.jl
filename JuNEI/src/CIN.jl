@@ -1,88 +1,126 @@
-"""有关NARS智能体(NARSAgent)与CIN(Computer Implement of NARS)的通信
+"""有关NARS智能体(Agent)与CIN(Computer Implement of NARS)的通信
 
 前身：
 - Boyang Xu, *NARS-FighterPlane*
 - ARCJ137442, *NARS-FighterPlane v2.i alpha*
 
 类の概览
-- NARSProgram：抽象一个NARS程序
-- NARSCmdline：实现以命令行为形式的CIN通信接口
+- CINProgram：抽象一个NARS程序
+- CINCmdline：实现以命令行为形式的CIN通信接口
 """
+module CIN
 
-# 导入「注册表」
-include("CIN_Templetes.jl")
+using ..Utils
+using ..NARSElements
 
-begin "NARSProgram" # 使用这个「代码块」将功能相近的代码封装到一起
+# 导入注册表的「数据结构」
+include("CIN/templates.jl")
+
+# 导入
+import Base: copy, similar, finalize, put!, isvalid
+
+# 导出
+export copy, similar, finalize, put!, isvalid
+
+export CINProgram, CINCmdline
+export has_hook, use_hook, out_hook!
+export isAlive, launch!, terminate!
+export getNARSType, getRegister # async_read_out
+
+export add_to_cmd!, cycle!
+export cache_input!, num_cached_input, cache_input!, clear_cached_input!, flush_cached_input!
+
+export @CINRegister_str # ?可以移动到templates里？
+
+
+begin "因为Utils引用问题迁移过来的宏"
+
+    """承载超类的方法：默认第一个参数是需要super的参数"""
+    macro super(super_class::Symbol, f_expr::Expr)
+        # :(@super Tuple{$super_class} $f_expr) # 无法解决递归调用问题：「Main.cmd」导致的「UndefVarError: `cmd` not defined」
+        # 不需要过多的esc包装，只需要新建一个符号，在这个符号下正常进行插值即可
+        # 📌方法：「@show @macroexpand」两个方法反复「修改-比对」直到完美
+        :(
+            invoke(
+                $(f_expr.args[1]), # 第一个被调用函数名字
+                Tuple{$super_class}, # 第二个超类类型
+                $((f_expr.args[2:end] .|> esc)...) # 第三个被调用函数的参数集
+            ) # 📝「$((args .|> esc)...」先使用esc获得局部变量，再使用「...」展开参数集
+        )
+    end    
+end
+
+begin "CINProgram" # 使用这个「代码块」将功能相近的代码封装到一起
     
     """具体与纳思通信的「程序」
     核心功能：负责与「NARS的具体计算机实现」沟通
     - 例：封装好的NARS程序包（支持命令行交互）
     """
-    abstract type NARSProgram end
+    abstract type CINProgram end
     
     "抽象属性声明：使用外部构造方法"
-    function NARSProgram(
+    function CINProgram(
         type::NARSType,
         out_hook::Union{Function,Nothing}=nothing,
         )
-        @debug "Construct: NARSProgram with $out_hook, $type"
+        @debug "Construct: CINProgram with $out_hook, $type"
         return new(out_hook, type) # 返回所涉及类的一个实例（通用构造函数名称）
     end
 
     "复制一份副本（所有变量），但不启动"
-    copy(program::NARSProgram)::NARSProgram = copy(program)
+    copy(program::CINProgram)::CINProgram = copy(program)
     "similar类似copy"
-    similar(program::NARSProgram)::NARSProgram = copy(program)
+    similar(program::CINProgram)::CINProgram = copy(program)
 
     # 析构函数
-    function finalize(program::NARSProgram)::Nothing
+    function finalize(program::CINProgram)::Nothing
         terminate!(program)
     end
     
     # 程序相关 #
     
     "判断「是否有钩子」"
-    has_hook(program::NARSProgram)::Bool = !isnothing(program.out_hook)
+    has_hook(program::CINProgram)::Bool = !isnothing(program.out_hook)
 
     "（有钩子时）调用钩子（输出信息）"
-    use_hook(program::NARSProgram, content::String) = has_hook(program) && program.out_hook(content)
+    use_hook(program::CINProgram, content::String) = has_hook(program) && program.out_hook(content)
     
     "设置对外接口：函数钩子"
-    function out_hook!(program::NARSProgram, newHook::Union{Function,Nothing})::Union{Function,Nothing}
+    function out_hook!(program::CINProgram, newHook::Union{Function,Nothing})::Union{Function,Nothing}
         program.out_hook = newHook
     end
     
     "（API）程序是否存活（开启）"
-    isAlive(program::NARSProgram)::Bool = @abstractMethod # 抽象属性变为抽象方法
+    isAlive(program::CINProgram)::Bool = @abstractMethod # 抽象属性变为抽象方法
     
     "（API）启动程序"
-    launch!(program::NARSProgram)::Nothing() = @abstractMethod
+    launch!(program::CINProgram)::Nothing() = @abstractMethod
     
     "终止程序"
-    function terminate!(program::NARSProgram)
+    function terminate!(program::CINProgram)
         program.out_hook = nothing # 置空
-        @debug "NARSProgram terminate!"
+        @debug "CINProgram terminate!"
     end
     
     # NAL相关 #
 
     "暴露一个「获取CIN类型」的外部接口（convert容易忘）"
-    getNARSType(program::NARSProgram)::NARSType = program.type
+    getNARSType(program::CINProgram)::NARSType = program.type
 
     "通过CIN直接获得「NARS语句模板」（convert容易忘）"
-    getRegister(program::NARSProgram)::CINRegister = convert(CINRegister, program) # 通过convert实现
+    getRegister(program::CINProgram)::CINRegister = convert(CINRegister, program) # 通过convert实现
     
     "（API）添加输入（NAL语句字符串）：对应PyNEI的「write_line」"
-    put!(program::NARSProgram, input::String) = @abstractMethod
+    put!(program::CINProgram, input::String) = @abstractMethod
 
     "针对「可变长参数」的多项输入" # 不强制inputs的类型
-    function put!(program::NARSProgram, input1, input2, inputs...) # 不强制Nothing
+    function put!(program::CINProgram, input1, input2, inputs...) # 不强制Nothing
         # 使用多个input参数，避免被派发到自身
         put!(program, (input1, input2, inputs...))
     end
 
     "针对「可变长参数」的多项输入" # 不强制inputs的类型
-    function put!(program::NARSProgram, inputs::Union{Vector,Tuple}) # 不强制Nothing
+    function put!(program::CINProgram, inputs::Union{Vector,Tuple}) # 不强制Nothing
         # 注意：Julia可变长参数存储在Tuple而非Vector中
         for input ∈ inputs
             put!(program, input)
@@ -90,20 +128,20 @@ begin "NARSProgram" # 使用这个「代码块」将功能相近的代码封装�
     end
     
     "（API）【立即？】增加NARS的工作循环：对应PyNEI的「add/update_inference_cycle」"
-    cycle!(::NARSProgram, steps::Integer)::Nothing = @abstractMethod
+    cycle!(::CINProgram, steps::Integer)::Nothing = @abstractMethod
     # 【20230706 10:11:04】Program不再内置「inference_cycle_frequency」，由调用者自行决定（派发cycle!）
     
 end
 
-begin "NARSCmdline"
+begin "CINCmdline"
     
     """囊括所有使用「命令行语句IO」实现的CIN
     - open一个子进程，异步运行CIN主程序
     - 通过「println(process.in, input)」向CIN输入信息
     """
-    mutable struct NARSCmdline <: NARSProgram
+    mutable struct CINCmdline <: CINProgram
 
-        # 继承NARSProgram #
+        # 继承CINProgram #
         
         "存储对应CIN类型"
         type::NARSType
@@ -123,7 +161,7 @@ begin "NARSCmdline"
         process::Base.Process
 
         "宽松的构造函数（但new顺序定死，没法灵活）"
-        function NARSCmdline(
+        function CINCmdline(
             type::NARSType,
             executable_path::String, 
             out_hook::Union{Function, Nothing} = nothing, 
@@ -139,19 +177,19 @@ begin "NARSCmdline"
     end
 
     "实现：复制一份副本（所有变量），但不启动"
-    copy(cmd::NARSCmdline)::NARSCmdline = NARSCmdline(
+    copy(cmd::CINCmdline)::CINCmdline = CINCmdline(
         cmd.type,
         cmd.executable_path,
         cmd.out_hook,
         copy(cached_inputs), # 可变数组需要复制
     )
     "similar类似copy"
-    similar(cmd::NARSCmdline)::NARSCmdline = copy(cmd)
+    similar(cmd::CINCmdline)::CINCmdline = copy(cmd)
     
     # 📝Julia对引入「公共属性」并不看好
     
     "存活依据：主进程非空"
-    isAlive(cmd::NARSCmdline)::Bool = 
+    isAlive(cmd::CINCmdline)::Bool = 
         hasproperty(cmd, :process) && # 是否有
         isdefined(cmd, :process) && # 定义了吗
         !isnothing(cmd.process) && # 是否为空
@@ -164,8 +202,8 @@ begin "NARSCmdline"
     # 进展：没能编写出类似「@soft_isnothing_property cmd.process」自动化（尝试用「hasproperty($object, property_name)」插值「自动转换成Symbol」混乱，报错不通过）
     
     "实现「启动」方法（生成指令，打开具体程序）"
-    function launch!(cmd::NARSCmdline)
-        # @super NARSProgram launch!(cmd)
+    function launch!(cmd::CINCmdline)
+        # @super CINProgram launch!(cmd)
         # TODO：使用cmd间接启动「管不到进程」，直接启动「主进程阻塞」
 
         isempty(cmd.executable_path) && error("empty executable path!")
@@ -210,7 +248,7 @@ begin "NARSCmdline"
     end
     
     "从stdout读取输出"
-    function async_read_out(cmd::NARSCmdline)
+    function async_read_out(cmd::CINCmdline)
         line::String = "" # Julia在声明值类型后必须初始化
         try # 注意：Julia中使用@async执行时，无法直接显示与跟踪报错
             while isAlive(cmd)
@@ -227,8 +265,8 @@ begin "NARSCmdline"
 
     # 📌在使用super调用超类实现后，还能再派发回本类的实现中（见clear_cached_input!）
     "继承：终止程序（暂未找到比较好的方案）"
-    function terminate!(cmd::NARSCmdline)
-        @debug "NARSCmdline terminate!"
+    function terminate!(cmd::CINCmdline)
+        @debug "CINCmdline terminate!"
         clear_cached_input!(cmd) # 清空而不置空（不支持nothing）
 
         # @async kill(cmd.process) # kill似乎没法终止进程
@@ -244,44 +282,44 @@ begin "NARSCmdline"
         # end # 若使用「taskkill」杀死直接open的进程，会导致主进程阻塞
 
         cmd.process.exitcode = 0 # 设置标识符（无奈之举），让isAlive(cmd)=false
-        @super NARSProgram terminate!(cmd) # 构造先父再子，析构先子再父
+        @super CINProgram terminate!(cmd) # 构造先父再子，析构先子再父
         @show cmd
     end
 
     "重载：直接添加至命令"
-    function put!(cmd::NARSCmdline, input::String)
+    function put!(cmd::CINCmdline, input::String)
         # @async add_to_cmd!(cmd, input) # 试图用异步而非「缓存」解决「写入卡死」问题
         cache_input!(cmd, input) # 先加入缓存
         flush_cached_input!(cmd) # 再执行&清除
     end
     
     "（慎用）【独有】命令行（直接写入）"
-    function add_to_cmd!(cmd::NARSCmdline, input::String)
+    function add_to_cmd!(cmd::CINCmdline, input::String)
         # @info "Added: $input" # 【20230710 15:52:13】Add目前工作正常
         println(cmd.process.in, input) # 使用println输入命令
     end
     
     "实现方法：推理循环步进"
-    function cycle!(cmd::NARSCmdline, steps::Integer)
+    function cycle!(cmd::CINCmdline, steps::Integer)
         add_to_cmd!(cmd, "$steps") # 增加指定步骤（println自带换行符）
     end
     
     "【独有】缓存的命令（使用公共属性实现）"
-    cached_inputs(cmd::NARSCmdline)::Vector{String} = cmd.cached_inputs
+    cached_inputs(cmd::CINCmdline)::Vector{String} = cmd.cached_inputs
     
     "缓存的输入数量" # 注：使用前置宏无法在大纲中看到方法定义
-    num_cached_input(cmd::NARSCmdline)::Integer = length(cmd.cached_inputs)
+    num_cached_input(cmd::CINCmdline)::Integer = length(cmd.cached_inputs)
 
     "将输入缓存（不立即写入CIN）"
-    cache_input!(cmd::NARSCmdline, input::String) = push!(cmd.cached_inputs, input)
+    cache_input!(cmd::CINCmdline, input::String) = push!(cmd.cached_inputs, input)
 
     "清除缓存的输入"
-    function clear_cached_input!(cmd::NARSCmdline)::Vector{String}
+    function clear_cached_input!(cmd::CINCmdline)::Vector{String}
         empty!(cmd.cached_inputs)
     end
     
     "将所有缓存的输入全部*异步*写入CIN，并清除缓存"
-    function flush_cached_input!(cmd::NARSCmdline)
+    function flush_cached_input!(cmd::CINCmdline)
         for cached_input ∈ cmd.cached_inputs
             @async add_to_cmd!(cmd, cached_input)
         end
@@ -291,7 +329,7 @@ begin "NARSCmdline"
 end
 
 # 「具体CIN注册」交给下面的jl：抽象接口与具体注册分离
-CIN_REGISTER_DICT::Dict = include("CIN_Register.jl")
+CIN_REGISTER_DICT::Dict = include("CIN/register.jl")
 #= 功能：定义CIN注册字典，存储与「具体CIN实现」的所有信息
 - CIN_REGISTER_DICT：NARSType→CINRegister
 注：使用include，相当于返回其文件中的所有代码
@@ -299,7 +337,7 @@ CIN_REGISTER_DICT::Dict = include("CIN_Register.jl")
 - 从而便于管理变量名（无需分散在两个文件中）
 =#
 
-#= 注：不把以下代码放到Templetes.jl中，是因为：
+#= 注：不把以下代码放到templates.jl中，是因为：
 - Program要用到NARSType
 - 以下代码要等Register注册
 - Register要等Program类声明
@@ -320,13 +358,8 @@ begin "注册后的一些方法（依赖注册表）"
         CIN_REGISTER_DICT[NARSType(type_name)]
     end
 
-    "名称→NAL语句模板（直接用宏调用）（依赖字典）"
-    macro CINRegister_str(type_name::String)
-        :($(Base.convert(CINRegister, type_name))) # 与其运行时报错，不如编译时就指出来
-    end # TODO：自动化「用宏生成宏？」
-
-    "Program→Type：复现PyNEI中NARSProgram的「type」属性"
-    function Base.convert(::Core.Type{NARSType}, program::NARSProgram)::NARSType
+    "Program→Type：复现PyNEI中CINProgram的「type」属性"
+    function Base.convert(::Core.Type{NARSType}, program::CINProgram)::NARSType
         return program.type
     end
 
@@ -335,21 +368,23 @@ begin "注册后的一些方法（依赖注册表）"
         CIN_REGISTER_DICT[nars_type].program_type
     end
     
-    "Type→Program：复现PyNEI中的NARSProgram.fromType函数（重载外部构造方法）"
-    function NARSProgram(nars_type::NARSType, args...; kwargs...)::NARSProgram
+    "Type→Program：复现PyNEI中的CINProgram.fromType函数（重载外部构造方法）"
+    function CINProgram(nars_type::NARSType, args...; kwargs...)::CINProgram
         # 获得构造方法
-        type_program = Base.convert(Core.Type, nars_type) # 「Core.Type{NARSProgram}」会过于精确而报错「Cannot `convert` an object of type Type{NARSProgram_OpenNARS} to an object of type Type{NARSProgram}」
+        type_program = Base.convert(Core.Type, nars_type) # 「Core.Type{CINProgram}」会过于精确而报错「Cannot `convert` an object of type Type{CINProgram_OpenNARS} to an object of type Type{CINProgram}」
         # 调用构造方法
         type_program(nars_type, args...; kwargs...) # 目前第一个参数是NARSType
     end
 
     "Program→Type→Register（复现Python中各种「获取模板」的功能）" # 尽可能用Julia原装方法
-    function Base.convert(::Core.Type{CINRegister}, program::NARSProgram)::CINRegister
+    function Base.convert(::Core.Type{CINRegister}, program::CINProgram)::CINRegister
         CIN_REGISTER_DICT[convert(NARSType, program)]
     end
 
     "派发Program做构造方法"
-    function CINRegister(program::NARSProgram)
+    function CINRegister(program::CINProgram)
         Base.convert(CINRegister, program)
     end
+end
+
 end

@@ -8,7 +8,7 @@ begin "游戏逻辑"
         current_coordinates::PointType
         direction_vec::Vector{AbstractString}
 
-        env_link::NARSEnvironment # 🆕对接代码之一
+        env_link::Environment # 🆕对接代码之一
     end
 
     "曼哈顿距离"
@@ -97,7 +97,7 @@ end
 """（对接）babble钩子 背景本能系统
 TODO：有限情况下的「感知」（需要game，但只能提供perception）
 """
-function agent_babble_hook(agent::NARSAgent, perceptions::Vector{NARSPerception})::Vector{NARSOperation}
+function agent_babble_hook(agent::Agent, perceptions::Vector{Perception})::Vector{Operation}
     global game # 【20230707 0:13:55 TODO】导入game不太可取，但迫于时限没办法
     # 概率随机游走
     if rand(1:5) == 1
@@ -108,15 +108,15 @@ function agent_babble_hook(agent::NARSAgent, perceptions::Vector{NARSPerception}
         dir::String = nameof(operation)
         move_vec = get_move_vec(game, dir) # 可能会返回空值
         if !isnothing(move_vec) && evaluate_coordinate_change(game, move_vec) < 0
-            return NARSOperation[operation]
+            return Operation[operation]
         end
     end
-    return NARSOperation[]
+    return Operation[]
 end
 
 "（对接）"
-function agent_sensor_hook!(agent::NARSAgent, collector::Vector{NARSPerception}, game::NavigationGame)
-    # push!(collector, NARSPerception"test"other)
+function agent_sensor_hook!(agent::Agent, collector::Vector{Perception}, game::NavigationGame)
+    # push!(collector, Perception"test"other)
     # 暂时不使用感知：游戏只有对「操作之后」的反馈，而没有「实时状态」的更新
 end
 
@@ -130,7 +130,7 @@ function init_environment(
     register_agent!(
         game.env_link,
         :nars,
-        NARSAgent(
+        Agent(
             NARSType(isnothing(type_name) ? inputType() : type_name),
             isnothing(executable_path) ? input() : executable_path;
             babble_hook = agent_babble_hook
@@ -144,14 +144,14 @@ function init_environment(
         ]
         agent_register!(
             game.env_link,
-            NARSGoal(goalname),
+            Goal(goalname),
             false # is_negative？？！
         )
     end
     # 批量注册感知器
     agent_register!(
         game.env_link,
-        NARSSensor(
+        Sensor(
             agent_sensor_hook!
         )
     )
@@ -159,7 +159,7 @@ function init_environment(
     for operation_name::AbstractString in game.direction_vec
         agent_register!(
             game.env_link,
-            NARSOperation(operation_name)
+            Operation(operation_name)
         )
     end
     # 启动
@@ -192,7 +192,7 @@ function requestInput(game::NavigationGame)::String
     
     # 若无/空：返回Babble
     if isnothing(result) || isempty(result)
-        agent_babble!(game.env_link, NARSPerception[]) # TODO 问题：BIS需要环境信息，但这里不能传入环境作为参数
+        agent_babble!(game.env_link, Perception[]) # TODO 问题：BIS需要环境信息，但这里不能传入环境作为参数
         @show numStoredOperations(getAgent(game.env_link, :nars))
         # sleep(
         #     1 + ops / (time() - start_time) # 操作次数/总时间流逝（s）
@@ -216,7 +216,7 @@ function response(game::NavigationGame, move_direction, move_vec)
         if !isempty(move_direction) # 若非「空指令」导致
             println("无效输入！\n")
             # 若是「非空指令」导致（Agent输出了无效的操作），反馈「操作无效」
-            agent_punish!(game.env_link, NARSGoal"valid")
+            agent_punish!(game.env_link, Goal"valid")
         end
         return false
     end
@@ -226,16 +226,16 @@ function response(game::NavigationGame, move_direction, move_vec)
     # 打印信息
     if d_distance_sign == 0
         println("距离没变！")
-        p = NARSPerception"no_change"SELF
+        p = Perception"no_change"SELF
     else
         println("距离变$(d_distance_sign>0 ? '大' : '小')了！")
-        p = NARSPerception("SELF", d_distance_sign>0 ? "farther" : "closer")
+        p = Perception("SELF", d_distance_sign>0 ? "farther" : "closer")
     end
 
     # 广播感知
     agent_put!(game.env_link, p)
     # 提示「有效」
-    agent_praise!(game.env_link, NARSGoal"valid")
+    agent_praise!(game.env_link, Goal"valid")
 
     return true
 end
@@ -245,7 +245,7 @@ function game_end(game::NavigationGame, move_count)
     println("目标点是：$(game.target_coordinates)")
     println("移动次数：$move_count")
     # NARS奖励
-    agent_praise!(game.env_link, NARSGoal"succeed")
+    agent_praise!(game.env_link, Goal"succeed")
     sleep(3) # 停下一段时间
 end
 
@@ -279,7 +279,7 @@ function play_game(game::NavigationGame)
 end
 
 "（对接）初始化游戏"
-function init_game(ndim::Integer, env::NARSEnvironment)::NavigationGame
+function init_game(ndim::Integer, env::Environment)::NavigationGame
     NavigationGame{Vector{Integer}}(
         rand(ndim) .* 20 .- 10 .|> round .|> Integer, # 目标
         zeros(ndim), # 起点
@@ -297,7 +297,7 @@ end
 
 "附加常量：可与「游戏实例」独立"
 # 📝Julia无法像Python那样注释变量：报错「cannot document the following expression」
-NARS_ENV::NARSEnvironment{Symbol} = NARSEnvironment{Symbol}(
+NARS_ENV::Environment{Symbol} = Environment{Symbol}(
 
 ) # 注册以Symbol为索引的泛型
 

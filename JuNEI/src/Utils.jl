@@ -1,4 +1,10 @@
+module Utils
+
 import Base: (+), (*)
+
+export (+), (*)
+export @reverse_dict_content, @softed_isnothing_property, @exceptedError, input
+export @abstractMethod, @WIP
 
 "基本代码拼接"
 (e1::Expr) + (e2::Expr) = quote
@@ -110,20 +116,6 @@ end
 =#
 "========一些OOP宏========"
 
-"""重定义show方法到repr
-
-把show方法重定义到repr上，相当于直接打印repr（无换行）
-
-例：「Base.show(io::IO, op::NARSGoal) = print(io, repr(op))」
-"""
-macro redefine_show_to_to_repr(ex)
-    name::Symbol = ex.args[1]
-    type::Symbol = ex.args[2]
-    :(
-        Base.show(io::IO, $name::$type) = print(io, repr($name))
-    )
-end
-
 # 注册抽象方法
 
 "注册抽象方法：不给访问，报错"
@@ -158,16 +150,4 @@ macro super(super_class::Expr, f_expr::Expr)
     )
 end
 
-"""承载超类的方法：默认第一个参数是需要super的参数"""
-macro super(super_class::Symbol, f_expr::Expr)
-    # :(@super Tuple{$super_class} $f_expr) # 无法解决递归调用问题：「Main.cmd」导致的「UndefVarError: `cmd` not defined」
-    # 不需要过多的esc包装，只需要新建一个符号，在这个符号下正常进行插值即可
-    # 📌方法：「@show @macroexpand」两个方法反复「修改-比对」直到完美
-    :(
-        invoke(
-            $(f_expr.args[1]), # 第一个被调用函数名字
-            Tuple{$super_class}, # 第二个超类类型
-            $((f_expr.args[2:end] .|> esc)...) # 第三个被调用函数的参数集
-        ) # 📝「$((args .|> esc)...」先使用esc获得局部变量，再使用「...」展开参数集
-    )
 end

@@ -4,3 +4,6 @@
 # Files to test
 *test*
 *code-workspace*
+
+# Manifest
+/Manifest.toml

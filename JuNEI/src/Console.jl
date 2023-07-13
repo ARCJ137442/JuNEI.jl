@@ -1,10 +1,17 @@
+module Console
+
+using ..Utils
+using ..CIN
+
+export NARSConsole
+
 """从CIN到交互的示例界面：NARS控制台
 - 🎯面向用户命令行输入（手动输入NAL语句）
-- 📄内置NARSProgram
+- 📄内置CINProgram
 - 🔬展示「如何封装CIN」的简单例子
 """
 mutable struct NARSConsole
-    program::NARSProgram
+    program::CINProgram
     input_prompt::String
     launched::Bool # 用于过滤「无关信息」
 
@@ -15,9 +22,9 @@ mutable struct NARSConsole
         ) = begin
         # 先构造自身
         console = new(
-            NARSCmdline(
+            CINCmdline(
                 type, # 传入Program
-                executable_path, # NARSCmdline
+                executable_path, # CINCmdline
                 identity, # 占位符
             ),
             input_prompt, # 留存prompt
@@ -46,4 +53,6 @@ function console!(console::NARSConsole)
         input = readline(stdin)
         put!(console.program, input)
     end
+end
+    
 end
