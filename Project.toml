@@ -1,12 +1,9 @@
 name = "JuNEI"
 uuid = "682ec16d-bad4-47d0-b0ae-38dcf160f772"
 authors = ["Tessergon"]
+julia = "1.9.1"
 version = "0.2.0"
 
 [deps]
-IterTools = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
-Reexport = "189a3867-3050-52da-a836-e630ba90ab69" # 用于导入导出库
-TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76" # 用于读取打印库版本信息
-
-[compat]
-julia = "1.9.1"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"

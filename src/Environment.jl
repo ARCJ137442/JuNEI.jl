@@ -25,7 +25,7 @@ export hasAgent, isAlive, getAgent
 export register_agent!, create_agent!, activate_all_agents!
 export discord_agent, discord_all_agents!
 export agent_babble!, agent_praise!, agent_punish!, agent_put!, agent_register!, agent_update!
-export iterate_operations
+export operations_itor
 
 
 begin "Environment"
@@ -324,24 +324,20 @@ begin "Environment"
         end
     end
 
-    import IterTools: chain # 链式迭代
-
     """遍历获取所有Agent的所有操作
     - 返回一个迭代器（不一定是Generator）
     - 遍历其中所有Agent
         - 再遍历每个Agent的operations
         - 返回(i, agent, operation, num)
     """
-    function iterate_operations(
+    function operations_itor(
         env::Environment{Identifier}
     ) where Identifier
-        return chain([
-            (
-                (i, agent, operation, num)
-                for (operation::Operation,num) in agent.operations
-            )
-            for (i::Identifier,agent::Agent) in env.agents
-        ]...)
+        return ( # 【20230714 15:10:40】现在不需要IterTools
+            (i, agent, operation, num) # 📝嵌套for循环的生成器，使用顺序就像直接用for一样（而非倒序）
+            for (i::Identifier, agent::Agent) in env.agents # 先遍历每个Agent
+            for (operation::Operation,num) in agent.operations # 再在Agent中遍历操作Operations
+        )
     end
 end
 

@@ -5,12 +5,14 @@
 """
 module Templates
 
-import Base: nameof, string, convert, repr, show, convert
+import Base: isempty, nameof, string, convert, repr, show, convert
+
+import ..Utils: input
 
 # 导出
-export nameof, string, convert, repr, show
+export isempty, nameof, string, convert, repr, show
 
-export NARSType, @NARSType_str
+export NARSType, @NARSType_str, inputType
 export CINRegister, @CINRegister_str
 
 
@@ -41,6 +43,22 @@ begin "NARSType"
         "特殊打印格式：与宏相同"
         repr(nars_type::NARSType) = "NARSType\"$(nameof(nars_type))\"" # 注意：不能直接插值，否则「StackOverflowError」
         Base.show(io::IO, nars_type::NARSType) = print(io, repr(nars_type))
+
+        "检测非空"
+        function isempty(nars_type::NARSType)::Bool
+            isempty(nars_type.name)
+        end
+        
+        "健壮输入NARSType"
+        function inputType(prompt::AbstractString="")::NARSType
+            while true
+                try
+                    return prompt |> input |> NARSType
+                catch
+                    "Invalid Input!" |> println
+                end
+            end
+        end
         
     end
 

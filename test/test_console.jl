@@ -1,5 +1,5 @@
 push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
-push!(LOAD_PATH, "JuNEI/src") # 用于VSCode调试（项目根目录起）
+push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 
 using JuNEI
 
@@ -14,6 +14,7 @@ end
 
 type::NARSType = inputType()
 # type::NARSType = NARSType"ONA"
+isempty(type) && (type = NARSType"ONA")
 
 # 自动决定exe路径
 

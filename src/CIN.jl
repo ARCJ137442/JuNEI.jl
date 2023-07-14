@@ -21,10 +21,10 @@ include("CIN/templates.jl")
 @reexport using .Templates # 重新导出，但也可「按需索取」只using CIN.Templates
 
 # 导入
-import Base: copy, similar, finalize, put!, isvalid
+import Base: isempty, copy, similar, finalize, put!, isvalid
 
 # 导出
-export copy, similar, finalize, put!, isvalid
+export isempty, copy, similar, finalize, put!, isvalid
 
 export CINProgram, CINCmdline
 export has_hook, use_hook, out_hook!

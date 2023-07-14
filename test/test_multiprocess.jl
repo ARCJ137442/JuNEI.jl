@@ -1,3 +1,8 @@
+push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
+push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
+
+import JuNEI: isAlive, put!, terminate!, launch!
+
 begin "附加功能"
     
     assemble_cmd(exe_path::String, args::Vector{String})::Cmd = `$exe_path $(join(args))`

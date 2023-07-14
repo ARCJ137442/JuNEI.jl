@@ -58,4 +58,19 @@ function __init__()
     print_package_informations()
 end
 
+using .CIN.Templates
+"使用PackageCompiler打包时的主函数"
+function julia_main()::Cint
+
+    # 启动终端
+    console = Console(
+        inputType("NARS Type: "),
+        input("Executable Path: "),
+    )
+
+    launch!(console)
+
+    return 0
+end
+
 end
