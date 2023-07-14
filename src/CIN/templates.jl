@@ -1,5 +1,6 @@
 """
 现有库所支持之CIN(Computer Implement of NARS)注册项之模板
+
 - 构造CIN注册项的数据结构
 - 给注册项提供模板
 """

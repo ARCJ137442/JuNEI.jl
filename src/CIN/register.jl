@@ -1,4 +1,6 @@
-"""现有库所支持之CIN(Computer Implement of NARS)的注册项
+"""
+现有库所支持之CIN(Computer Implement of NARS)的注册项
+
 注册在目前接口中可用的CIN类型
 - OpenNARS(Java)
 - ONA(C/C++)
@@ -168,6 +170,47 @@ Dict(
         
         # 惩
         (ng::Goal) -> "($TERM_SELF --> [$(ng.name)]). :|: %0.00;0.90%",
+
+    ),
+
+    NARSType"JuNARS" => CINRegister(
+
+        # 使用特制Junars类控制
+        CINJuliaModule,
+
+        # 程序启动命令（不使用）
+        (executable_path::String) -> nothing,
+
+        #= 操作捕捉(WIP)
+        例句：
+
+        =#
+        (line::String) -> begin
+            @info "Operations WIP in Junars: $line"
+            EMPTY_Operation
+        end,
+        
+        # 感知
+        (np::Perception) -> "<{$(np.subject)} --> [$(np.adjective)]>.", # 暂时移除时态「 :|:」（OpenJunars暂不支持时序推理）
+        
+        # 注册操作
+        (op::Operation) -> "<(*,$TERM_SELF) --> ^$(op.name))>.",
+
+        # 无意识操作
+        (op::Operation) -> "<(*,$TERM_SELF) --> ^$(op.name))>.",
+        
+        # 目标
+        (ng::Goal, is_negative::Bool) -> (
+            is_negative ? # 括号里可以用换行分隔三元运算符「? :」
+              "(--, <$TERM_SELF --> [$(ng.name)]>)!" # 一个「负向目标」，指导「实现其反面」
+            : "<$TERM_SELF --> [$(ng.name)]>!"
+        ),
+        
+        # 奖
+        (ng::Goal) -> "<$TERM_SELF --> [$(ng.name)]>.",
+        
+        # 惩
+        (ng::Goal) -> "<$TERM_SELF --> [$(ng.name)]>. %0%", # 通用的语法是「"(--,<$TERM_SELF --> [%s]>). :|:"」
 
     ),
 )

@@ -26,7 +26,7 @@ import Base: isempty, copy, similar, finalize, put!, isvalid
 # 导出
 export isempty, copy, similar, finalize, put!, isvalid
 
-export CINProgram, CINCmdline
+export CINProgram, CINCmdline, CINJuliaModule
 export has_hook, use_hook, out_hook!
 export isAlive, launch!, terminate!
 export getNARSType, getRegister # async_read_out
@@ -333,6 +333,49 @@ begin "CINCmdline"
 
 end
 
+begin "CINJuliaModule"
+    
+    """囊括所有使用「Julia模块」实现的CIN
+
+    """
+    abstract type CINJuliaModule <: CINProgram end
+
+    "实现：复制一份副本（所有变量），但不启动"
+    copy(jm::CINJuliaModule)::CINJuliaModule = CINJuliaModule(
+        jm.type,
+        jm.package_paths,
+        jm.package_names,
+        jm.out_hook,
+        copy(cached_inputs), # 可变数组需要复制
+    )
+    "similar类似copy"
+    similar(jm::CINJuliaModule)::CINJuliaModule = copy(jm)
+
+    "导入路径&导入Julia包"
+    function import_external_julia_package(package_paths::Union{AbstractArray, Tuple}, package_names::Union{AbstractArray, Tuple})
+        # 添加所有路径
+        push!(LOAD_PATH, package_paths...)
+
+        # using所有包
+        @info "Using packages $package_names"
+        for package_name in package_names
+            @eval using $(Symbol(package_name))
+        end
+    end
+
+    function import_external_julia_package(package_path::AbstractString, package_names::Union{AbstractArray, Tuple})
+        import_external_julia_package((package_path,), package_names)
+    end
+
+    function import_external_julia_package(package_path::AbstractString, package_name::AbstractString)
+        import_external_julia_package((package_path,), (package_name,))
+    end
+
+end
+
+# 先注册直接使用Julia代码的实现
+include("CIN/register_Junars.jl")
+
 # 「具体CIN注册」交给下面的jl：抽象接口与具体注册分离
 CIN_REGISTER_DICT::Dict = include("CIN/register.jl")
 #= 功能：定义CIN注册字典，存储与「具体CIN实现」的所有信息
@@ -342,7 +385,7 @@ CIN_REGISTER_DICT::Dict = include("CIN/register.jl")
 - 从而便于管理变量名（无需分散在两个文件中）
 =#
 
-#= 注：不把以下代码放到templates.jl中，是因为：
+#= 注：不把以下代码放到templates.jl中，因为：
 - Program要用到NARSType
 - 以下代码要等Register注册
 - Register要等Program类声明

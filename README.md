@@ -32,6 +32,7 @@ NARS计算机实现
 - OpenNARS: <https://github.com/opennars/opennars>
 - ONA: <https://github.com/opennars/OpenNARS-for-Applications>
 - NARS-in-Python: <https://github.com/ccrock4t/NARS-Python>
+- OpenJunars: <https://github.com/AIxer/OpenJunars>
 
 NARS+ & 游戏Domo
 

@@ -1,8 +1,8 @@
 module JuNEI
 
-# 使用「Re-export」在using的同时export其中export的所有对象，避免命名冲突
+# 📝使用「Re-export」在using的同时export其中export的所有对象，避免命名冲突
 using Reexport
-#= Claude 2
+#= 📄资料 from Claude 2
 So in summary, Reexport lets you easily re-export parts of other modules's APIs. 
 This avoids naming conflicts between modules
     and allows combining exported symbols 
@@ -49,8 +49,12 @@ function print_package_informations()
     project_file_path = joinpath(dirname(@__DIR__), "Project.toml")
     # 读取文档内容，转换成toml数据
     project_file_content = read(project_file_path, String) |> parse
-    # 打印信息（附带颜色）
-    println("\e[1m\e[32m$(project_file_content["name"]) v$(project_file_content["version"])\e[0m")
+    # 打印信息（附带颜色）【20230714 22:25:42】现使用`printstyled`而非ANSI控制字符
+    printstyled(
+        "$(project_file_content["name"]) v$(project_file_content["version"])\n", 
+        bold=true,
+        color=:light_green
+    )
 end
 
 "包初始化：打印包信息"
