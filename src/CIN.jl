@@ -1,4 +1,5 @@
-"""有关NARS智能体(Agent)与CIN(Computer Implement of NARS)的通信
+"""
+有关NARS智能体(Agent)与CIN(Computer Implement of NARS)的通信
 
 前身：
 - Boyang Xu, *NARS-FighterPlane*
@@ -10,11 +11,14 @@
 """
 module CIN
 
+using Reexport
+
 using ..Utils
 using ..NARSElements
 
 # 导入注册表的「数据结构」
 include("CIN/templates.jl")
+@reexport using .Templates # 重新导出，但也可「按需索取」只using CIN.Templates
 
 # 导入
 import Base: copy, similar, finalize, put!, isvalid
@@ -281,9 +285,10 @@ begin "CINCmdline"
         #     @error e
         # end # 若使用「taskkill」杀死直接open的进程，会导致主进程阻塞
 
+        # 【20230714 13:41:18】即便上面的loop end了，程序也没有真正终止
         cmd.process.exitcode = 0 # 设置标识符（无奈之举），让isAlive(cmd)=false
         @super CINProgram terminate!(cmd) # 构造先父再子，析构先子再父
-        @show cmd
+        @show cmd # 测试
     end
 
     "重载：直接添加至命令"

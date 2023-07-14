@@ -22,7 +22,8 @@ export nameof, isempty, getindex, string, repr, show
 
 export TermType, @TermType_str, Term, AtomicTerm
 export Goal, @Goal_str
-export Operation, @Operation_str, EMPTY_Operation, SUBJECT_SELF, has_parameters
+export Operation, @Operation_str, EMPTY_Operation, has_parameters
+export SUBJECT_SELF, TERM_SELF
 export Perception, @Perception_str, collect_perception!
 export Sensor
 
@@ -63,7 +64,7 @@ begin "词项"
         end
         
         "缩写字典：使用TermType'B'取类型"
-        TERM_TYPE_NAME_ABBREVIATION_DICT::Dict{String, TermType} = Dict(
+        const TERM_TYPE_NAME_ABBREVIATION_DICT::Dict{String, TermType} = Dict(
             "B" => TermType_BASIC,
             "I" => TermType_INSTANCE,
             "P" => TermType_PROPERTY,
@@ -92,7 +93,7 @@ begin "词项"
         # )
     end
 
-    TARM_TYPE_SURROUNDING_DICT::Dict{TermType,String} = Dict(
+    const TARM_TYPE_SURROUNDING_DICT::Dict{TermType,String} = Dict(
         TermType_BASIC => "",
         TermType_INSTANCE => "{}",
         TermType_PROPERTY => "[]",
@@ -249,6 +250,9 @@ begin "感知"
 
     "内置常量：NARS内置对象名「自我」"
     const SUBJECT_SELF::String = "SELF"
+    
+    "表示「自我」的对象"
+    const TERM_SELF::String = "{$SUBJECT_SELF}"
 
     """抽象出一个「NARS感知」
 

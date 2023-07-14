@@ -17,6 +17,8 @@ module NARSEnvironment
 using ..NARSElements
 using ..NARSAgent
 
+import ..NARSAgent: isAlive # 重名覆盖
+
 # 导出
 export Environment
 export hasAgent, isAlive, getAgent

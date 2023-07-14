@@ -1,15 +1,17 @@
-"""现有库所支持之CIN(Computer Implement of NARS)的注册项（结构）
-构造CIN注册项的数据结构
 """
+现有库所支持之CIN(Computer Implement of NARS)注册项之模板
+- 构造CIN注册项的数据结构
+- 给注册项提供模板
+"""
+module Templates
 
-# 在此导出，include之后就免得再导出一次
 import Base: nameof, string, convert, repr, show, convert
 
-
+# 导出
 export nameof, string, convert, repr, show
 
 export NARSType, @NARSType_str
-export CINRegister, TERM_SELF
+export CINRegister, @CINRegister_str
 
 
 begin "NARSType"
@@ -47,9 +49,6 @@ end
 begin "CINRegister"
 
     import ..NARSElements: SUBJECT_SELF
-    
-    "表示「自我」的对象"
-    TERM_SELF::String = "{$SUBJECT_SELF}"
 
     """CINRegister
     注册与相应类型所对应的模板、处理函数
@@ -101,5 +100,7 @@ begin "CINRegister"
     macro CINRegister_str(type_name::String)
         :($(Base.convert(CINRegister, type_name))) # 与其运行时报错，不如编译时就指出来
     end # TODO：自动化「用宏生成宏？」
+
+end
 
 end

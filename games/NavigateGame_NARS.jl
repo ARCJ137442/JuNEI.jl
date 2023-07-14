@@ -1,4 +1,8 @@
-include("../JuNEI/JuNEI.jl") # 导入上级目录的代码
+# include("../JuNEI/JuNEI.jl")
+push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
+push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
+
+using JuNEI
 
 begin "游戏逻辑"
 
@@ -297,9 +301,7 @@ end
 
 "附加常量：可与「游戏实例」独立"
 # 📝Julia无法像Python那样注释变量：报错「cannot document the following expression」
-NARS_ENV::Environment{Symbol} = Environment{Symbol}(
-
-) # 注册以Symbol为索引的泛型
+NARS_ENV::Environment{Symbol} = Environment{Symbol}() # 注册以Symbol为索引的泛型
 
 # 游戏开始
 global game = nothing

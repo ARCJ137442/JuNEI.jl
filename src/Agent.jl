@@ -6,9 +6,10 @@ module NARSAgent
 # 导入
 import Base: copy, similar, put!
 
-import ..CIN: getNARSType, getRegister, has_hook, out_hook!, isAlive, terminate!, cycle! # 需要为函数添加方法，否则直接覆盖会出错
-using ..CIN
 using ..NARSElements
+
+import ..CIN: getNARSType, getRegister, has_hook, out_hook!, isAlive, terminate!, cycle! # 仅import能为函数添加方法
+using ..CIN
 
 # 导出
 export copy, similar, put!
@@ -371,7 +372,7 @@ begin "Agent"
         "处理CIN输出的操作"
         function hook_operation!(agent::Agent, operation::Operation)
             # 存储操作
-            register!(agent, operation)
+            store!(agent, operation)
             # 添加统计
             agent.stats.total_initiative_operations += 1
         end
@@ -384,7 +385,7 @@ begin "Agent"
                 # 添加无意识操作
                 put!(agent, operation)
                 # 存储操作 （绕过统计）
-                register!(agent, operation)
+                store!(agent, operation)
                 # 添加统计
                 agent.stats.total_unconscious_operations += 1
             end
