@@ -75,7 +75,7 @@ begin "ONA"
     ona = CINProgram(
         NARSType"ONA",
         paths[:c],
-    ) # 编码问题：系统找不到指定的路径。 "H:\A137442\Develop\AGI\NARS\ONA\NAR.exe"
+    ) # 编码问题：系统找不到指定的路径。 "[...]\ONA\NAR.exe"
     
     @show launch!(ona) isAlive(ona)
     @show out_hook!(ona, hook)
