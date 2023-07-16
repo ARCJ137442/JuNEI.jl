@@ -42,7 +42,7 @@ begin "CINOpenJunars"
         # "缓存的输入"
         # cached_inputs::Vector{String}
         
-        "宽松的构造函数（但new顺序定死，没法灵活）"
+        "宽松的构造方法（但new顺序定死，没法灵活）"
         function CINJunars(
             package_paths::Vector{String},
             package_names::Vector{String} = JUNARS_DEFAULT_MODULES,

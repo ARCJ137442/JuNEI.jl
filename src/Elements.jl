@@ -16,7 +16,7 @@ module NARSElements
 using ..Utils # 一个「.」表示当前模块下，两个「.」表示上一级模块下
 
 using Reexport # 使用reexport自动重新导出
-@reexport import Base: nameof, isempty, getindex, string, repr, show #=
+@reexport import Base: nameof, isempty, getindex, string, repr, show, (≠) #=
 导入Base，并向Base函数中添加方法
 防止调用报错「no method matching isempty(::Tuple{String})
 You may have intended to import Base.isempty」
@@ -31,8 +31,8 @@ export Operation, @Operation_str, EMPTY_Operation, has_parameters
 
 export SUBJECT_SELF, TERM_SELF
 export Perception, @Perception_str
-export enabled, perceive_hook, collect_perception!
 export AbstractSensor, SensorBasic, SensorDifference
+export enabled, perceive_hook, collect_perception!, has_baseline
 
 
 begin "一些实用代码"
@@ -326,6 +326,7 @@ begin "感知"
         - 约定：`perceive_hook(收集器, 其它附加参数)::Union{Vector{Perception}, Nothing}`
             - 参数：第一个*位置参数*必定是「收集器」对象
             - 返回值：Perception（若需自动添加）/nothing（无需自动添加）
+            - 🔗见下面`collect_perception!`对钩子的调用
         """
         perceive_hook(s::AbstractSensor) = s.perceive_hook
 
@@ -334,6 +335,10 @@ begin "感知"
         - 将「收集器」也传递到外调函数，以供参考
             - 后续可以让外调函数「根据已有感知做出对策」
         - 把「外调函数」返回的Perception数据（若非空）添加到收集器
+        - 【20230716 23:12:54】💭不把Sensor作为参数传递的理由
+            - 「从其它参数中返回感知对象」暂不需要「感知器本身」参与
+            - 📌范式：若需要在「输出感知」层面进行功能增加（如「累积统计」功能），
+                更推荐「扩展新类」而非「将外调函数复杂化」
         """
         function collect_perception!(
             sensor::AbstractSensor, 
@@ -378,7 +383,7 @@ begin "感知"
             enabled::Bool
             perceive_hook::Function # 20230710 15:48:03 现不允许置空
 
-            "构造函数"
+            "构造方法"
             SensorBasic(
                 perceive_hook::Function,
                 enabled::Bool=true, # 默认值
@@ -401,24 +406,40 @@ begin "感知"
         > 感觉系统不是对所有信号敏感，而是对信号的变化敏感。
         > 感觉信号没有逻辑意义的真值，但有信号意义的真值。
         """
-        mutable struct SensorDifference <: AbstractSensor
+        mutable struct SensorDifference{BaselineType} <: AbstractSensor
             enabled::Bool
-            perceive_hook::Function # 目标对象→Perception
+            perceive_hook::Function
 
             baseline_hook::Function # 目标对象→基线参考（产生用于对比的值）
-            baseline::Any # 所谓「感知基线」
 
-            SensorDifference(
+            "差异函数：两个「基线对象」→「是否有差异」"
+            distinct_function::Function # (::BaselineType, ::BaselineType)::Bool
+
+            "所谓「感知基线」"
+            baseline::BaselineType # 【20230716 23:16:49】放最后是为了使用「未定义」状态
+
+            "构造方法"
+            function SensorDifference{BaselineType}(
                 perceive_hook::Function, # 只有在「基线」更新时起效
                 baseline_hook::Function=perceive_hook, # 默认和「外调钩子」是一样的
+                distinct_function::Function=(≠), # 默认为「不等号」
                 enabled::Bool=true,
-            ) = new(
-                enabled,
-                perceive_hook,
-                baseline_hook,
-                nothing, # 默认为空
-            )
+            ) where BaselineType
+                new{BaselineType}(
+                    enabled,
+                    perceive_hook,
+                    baseline_hook,
+                    distinct_function,
+                    # nothing # 使用「未定义」形式规避「类型转换」问题（Union不是首选）
+                )
+            end
+
+            "语法糖：不指定类型⇒默认Any"
+            SensorDifference(a...;k...) = SensorDifference{Any}(a...;k...)
         end
+
+        "（新）是否有「基线」：检测「先前是否已经感知过」"
+        has_baseline(s::SensorDifference) = isdefined(s, :baseline)
 
         "（重载）字符串显示"
         Base.string(s::SensorDifference)::String = "<NARS $(typeof(s)) | $(s.baseline_hook) -$(enabled(s) ? "-" : "×")> $(s.perceive_hook)>"
@@ -433,12 +454,14 @@ begin "感知"
                 2. 将「参考对象」作为新的「基线对象」
         """
         function collect_perception!(
-            sensor::SensorDifference, 
+            sensor::SensorDifference{BaselineType}, 
             collector::Vector{Perception}, 
             targets...; targets_kw...
-            )
-            reference::Any = sensor.baseline_hook(collector, targets...; targets_kw...)
-            if sensor.baseline ≠ reference # 使用「基于值的比较」
+            ) where BaselineType
+            # 构造「参考对象」
+            reference::BaselineType = sensor.baseline_hook(collector, targets...; targets_kw...)
+            # 比对：初次or有差别
+            if !has_baseline(sensor) || sensor.distinct_function(sensor.baseline, reference) # 使用自定义的「差异函数」
                 # 【20230716 21:19:53】在已知有`perceive_hook`字段时，无需再调用函数获取
                 perceptions::Union{Vector{Perception}, Nothing} = sensor.perceive_hook(collector, targets...; targets_kw...)
                 !isnothing(perceptions) && push!(
