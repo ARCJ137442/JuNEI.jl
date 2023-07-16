@@ -21,10 +21,9 @@ include("CIN/templates.jl")
 @reexport using .Templates # 重新导出，但也可「按需索取」只using CIN.Templates
 
 # 导入
-import Base: isempty, copy, similar, finalize, put!, isvalid
+@reexport import Base: isempty, copy, similar, finalize, put!, isvalid
 
 # 导出
-export isempty, copy, similar, finalize, put!, isvalid
 
 export CINProgram, CINCmdline, CINJuliaModule
 export has_hook, use_hook, out_hook!
@@ -273,6 +272,7 @@ begin "CINCmdline"
         @debug "CINCmdline terminate!"
         clear_cached_input!(cmd) # 清空而不置空（不支持nothing）
 
+        # 【20230716 9:14:43】TODO：增加「是否强制」选项，用taskkill杀死主进程（java, NAR, main），默认为false
         # @async kill(cmd.process) # kill似乎没法终止进程
         # @async close(cmd.process) # （无async）close会导致主进程阻塞
         # try

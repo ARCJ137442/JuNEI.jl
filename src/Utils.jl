@@ -1,8 +1,8 @@
 module Utils
 
-import Base: (+), (*)
+using Reexport # 使用reexport自动重新导出
+@reexport import Base: (+), (*)
 
-export (+), (*)
 export @reverse_dict_content, @softed_isnothing_property, @exceptedError, input
 export @abstractMethod, @WIP
 

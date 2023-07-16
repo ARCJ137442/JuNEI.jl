@@ -6,12 +6,12 @@
 """
 module Templates
 
-import Base: isempty, nameof, string, convert, repr, show, convert
+using Reexport # 使用reexport自动重新导出
+@reexport import Base: isempty, nameof, string, convert, repr, show, convert
 
 import ..Utils: input
 
 # 导出
-export isempty, nameof, string, convert, repr, show
 
 export NARSType, @NARSType_str, inputType
 export CINRegister, @CINRegister_str

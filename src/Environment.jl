@@ -190,7 +190,7 @@ begin "Environment"
 
     begin "register"
         
-        Registerable::Type = Union{Operation, Goal, Sensor}
+        Registerable::Type = Union{Operation, Goal, AbstractSensor}
 
         """对某个Agent进行注册
         """

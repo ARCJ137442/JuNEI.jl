@@ -4,7 +4,8 @@
 module NARSAgent
 
 # 导入
-import Base: copy, similar, put!
+using Reexport
+@reexport import Base: copy, similar, put!, empty!
 
 using ..NARSElements
 
@@ -12,7 +13,6 @@ import ..CIN: getNARSType, getRegister, has_hook, out_hook!, isAlive, terminate!
 using ..CIN
 
 # 导出
-export copy, similar, put!
 
 export Agent_Stats, Agent
 
@@ -23,23 +23,32 @@ export goals, register!, praise!, punish!
 export getOperations, numStoredOperations, remind_operations, store!, reduce!, clear_stored_operations
 export babble, babble!
 
+begin "Agent Stats"
 
-"NARS智能体的统计（可变对象）"
-mutable struct Agent_Stats
-    total_sense_inputs::Unsigned
-    total_initiative_operations::Unsigned
-    total_unconscious_operations::Unsigned
+    "NARS智能体的统计（可变对象）"
+    mutable struct Agent_Stats
+        total_sense_inputs::Unsigned
+        total_initiative_operations::Unsigned
+        total_unconscious_operations::Unsigned
+    end
+
+    "默认构造函数：产生空值"
+    Agent_Stats() = Agent_Stats(0,0,0)
+
+    "复制一个统计对象（struct不会默认派发到copy方法）"
+    copy(stats::Agent_Stats) = Agent_Stats(
+        stats.total_sense_inputs,
+        stats.total_initiative_operations,
+        stats.total_unconscious_operations,
+    )
+
+    "清空统计数据"
+    function empty!(stats::Agent_Stats)
+        stats.total_sense_inputs = 0
+        stats.total_initiative_operations = 0
+        stats.total_unconscious_operations = 0
+    end
 end
-
-"默认构造函数：产生空值"
-Agent_Stats() = Agent_Stats(0,0,0)
-
-"复制一个统计对象（struct不会默认派发到copy方法）"
-Base.copy(stats::Agent_Stats) = Agent_Stats(
-    stats.total_sense_inputs,
-    stats.total_initiative_operations,
-    stats.total_unconscious_operations,
-)
 
 begin "Agent"
 
@@ -57,13 +66,13 @@ begin "Agent"
         goals::Vector{Tuple{Goal,Bool}} # Goal, is_negative
 
         # 感知
-        sensors::Vector{Sensor}
+        sensors::Vector{AbstractSensor}
 
         # 操作
         operations::Dict{Operation, Unsigned}
 
         # 统计
-        stats::Agent_Stats
+        stats::Agent_Stats # 一个Agent，一个Stats
 
         # 运行
 
@@ -80,22 +89,22 @@ begin "Agent"
         babble_hook::Function # 是否要为了「让其可变」而让整个类mutable？
 
         "正常构造函数"
-        Agent(
+        function Agent(
             type::NARSType, 
             executable_path::String; # 内部构造函数可以接受关键字参数
             cycle_speed::Integer=1,
             babble_hook::Function=babble, # 占位符
-            ) = begin
+            )
             
             # 先构造自身
             agent = new(
-                CINCmdline(
+                CINProgram(
                     type, # 传入Agent
                     executable_path, # 可执行文件路径
                     identity, # 占位符
                 ),
                 Tuple{Goal,Bool}[], # 空值
-                Sensor[], # 空值
+                AbstractSensor[], # 空值
                 Dict{Operation, Unsigned}(),
                 Agent_Stats(), # 空值（注意：结构体的new不支持关键字参数，）
                 cycle_speed, # 强行使用关键字参数则报错：「syntax: "new" does not accept keyword arguments around 」
@@ -222,14 +231,20 @@ begin "Agent"
             return perceptions
         end
 
-        "从感知器中获取所有「NARS感知」，并存放到指定「收集器」中"
+        """
+        从感知器中获取所有「NARS感知」，并存放到指定「收集器」中
+        - 感知器传参格式：感知器(收集器, Agent对象, 其它参数)
+        """
         function collect_all_perceptions(agent::Agent, sense_targets...; sense_targets_kw...)::Vector{Perception}
             # 建立收集器
             result::Vector{Perception} = Perception[]
             # 收集感知
-            for sensor!::Sensor in agent.sensors
-                 # （直接调用无需检测）传参(前两个参数固定为：Agent自身，收集器)
-                sensor!(agent, result, sense_targets...; sense_targets_kw...)
+            for sensor!::AbstractSensor in agent.sensors
+                #= 向各个感知器传参传参
+                - 前两个参数固定为：收集器，Agent自身
+                    - ⚠注意：这里*固定传入*的参数Agent，在Sensor中是「附加感知项」
+                =#
+                sensor!(result, agent, sense_targets...; sense_targets_kw...)
             end
             # 返回感知
             # @show result
@@ -291,9 +306,9 @@ begin "Agent"
         # 感知
 
         "添加感知器"
-        function register!(agent::Agent, ns::Sensor)
+        function register!(agent::Agent, s::AbstractSensor)
             # @info "registering..." # 【20230710 17:18:54】注册测试正常
-            ns ∉ agent.sensors && push!(agent.sensors, ns) # 考虑把sensors当做一个集合？
+            s ∉ agent.sensors && push!(agent.sensors, s) # 考虑把sensors当做一个集合？
         end
 
         "添加感知"

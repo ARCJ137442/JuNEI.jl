@@ -17,7 +17,10 @@ export launch!, console!
 - 🔬展示「如何封装CIN」的简单例子
 """
 mutable struct Console
-    program::CINProgram
+
+    # 内置程序（引用）
+    const program::CINProgram
+
     input_prompt::String
     launched::Bool # 用于过滤「无关信息」
 

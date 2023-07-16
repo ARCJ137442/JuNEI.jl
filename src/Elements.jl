@@ -1,7 +1,11 @@
-"""有关NARS从「具体实现」中抽象出的元素集合
+"""
+有关NARS从「具体实现」中抽象出的元素集合
 
 在不同CIN（NARS计算机实现）中，找到一个「共通概念」，用这些「共通概念」打造不同CIN的沟通桥梁
 
+- (WIP)Term 词项
+    - 【20230716 21:39:11】？是否需要以此整一个「NAL孪生」，自己实现一遍NAL语句解析
+- Goal 目标
 - Perception 感知
 - Operation 操作
 - Sensor 感知器
@@ -11,21 +15,24 @@ module NARSElements
 
 using ..Utils # 一个「.」表示当前模块下，两个「.」表示上一级模块下
 
-import Base: nameof, isempty, getindex, string, repr, show #=
+using Reexport # 使用reexport自动重新导出
+@reexport import Base: nameof, isempty, getindex, string, repr, show #=
 导入Base，并向Base函数中添加方法
 防止调用报错「no method matching isempty(::Tuple{String})
 You may have intended to import Base.isempty」
-- 或「重载内置函数失败」
+- 或「重载内置函数失败」（没有export）
 =#
 
-export nameof, isempty, getindex, string, repr, show
-
 export TermType, @TermType_str, Term, AtomicTerm
+
 export Goal, @Goal_str
+
 export Operation, @Operation_str, EMPTY_Operation, has_parameters
+
 export SUBJECT_SELF, TERM_SELF
-export Perception, @Perception_str, collect_perception!
-export Sensor
+export Perception, @Perception_str
+export enabled, perceive_hook, collect_perception!
+export AbstractSensor, SensorBasic, SensorDifference
 
 
 begin "一些实用代码"
@@ -260,7 +267,7 @@ begin "感知"
 
     - 记录其「主语」「表语」，且由参数**唯一确定**
 
-    TODO：类似「字符串」的静态方法（减少对象开销）
+    TODO：类似「字符串」的静态存储方法（减少对象开销）
     """
     struct Perception
 
@@ -272,6 +279,7 @@ begin "感知"
 
         "构造函数：主语&形容词"
         Perception(subject::String, adjective::String) = new(subject, adjective)
+
         "省略写法：默认使用「自我」做主语（单参数，不能用默认值）"
         Perception(adjective::String) = new(SUBJECT_SELF, adjective)
     end
@@ -297,40 +305,151 @@ begin "感知"
 
     # 感知器 #
 
-    """抽象出一个「NARS感知器」
+    begin "抽象感知器"
 
-    主要功能：作为NARS感知的处理器，根据环境提供的参数生成相应「NARS感知」
+        """抽象出一个「NARS感知器」
 
-    - 主要函数：sense(自身,收集器,其它参数) -> 向收集器里添加感知
-    """
-    mutable struct Sensor
-        enabled::Bool
-        perceive_hook::Function # 20230710 15:48:03 现不允许置空
+        主要功能：作为NARS感知的处理器，根据环境提供的参数生成相应「NARS感知」
+        - 主要函数：被调用 -> 向收集器里添加感知
+            - 调用约定：`感知器对象(收集器, 其它参数)`
+        - 默认约定的「共有字段」（在未重载前使用的函数，推荐用函数而非字段）
+            - enabled：是否使能
+            - perceive_hook：外调函数
+        """
+        abstract type AbstractSensor end
+
+        "（默认：开关状态字段）属性「是否使能」"
+        enabled(s::AbstractSensor) = s.enabled
+
+        """
+        （默认：字段perceive_hook）属性「外调函数」
+        - 约定：`perceive_hook(收集器, 其它附加参数)::Union{Vector{Perception}, Nothing}`
+            - 参数：第一个*位置参数*必定是「收集器」对象
+            - 返回值：Perception（若需自动添加）/nothing（无需自动添加）
+        """
+        perceive_hook(s::AbstractSensor) = s.perceive_hook
+
+        """
+        （默认）在不检查enabled的情况下：直接执行「外调函数」，
+        - 将「收集器」也传递到外调函数，以供参考
+            - 后续可以让外调函数「根据已有感知做出对策」
+        - 把「外调函数」返回的Perception数据（若非空）添加到收集器
+        """
+        function collect_perception!(
+            sensor::AbstractSensor, 
+            collector::Vector{Perception}, 
+            targets...; targets_kw...
+            )
+            perceptions::Union{Vector{Perception}, Nothing} = (perceive_hook(sensor))(collector, targets...; targets_kw...)
+            !isnothing(perceptions) && push!(
+                collector,
+                perceptions...
+            )
+        end
+
+        "直接调用：（在使能的条件下）执行感知（返回值不使用）"
+        function (s::AbstractSensor)(
+            collector::Vector{Perception}, # 收集器
+            targets...; # 位置参数
+            targets_kw... # 关键字参数
+            ) # 返回值不重要
+            enabled(s) && collect_perception!(s, collector, targets...; targets_kw...)
+        end
+
+        "字符串显示"
+        Base.string(s::AbstractSensor)::String = "<NARS $(typeof(s)) -$(enabled(s) ? "-" : "×")> $(perceive_hook(s))>"
+
+        "插值显示=字符串"
+        Base.repr(s::AbstractSensor)::String = string(s)
+
+        "同步在show中的显示代码"
+        @redefine_show_to_to_repr s::AbstractSensor
+
     end
 
-    "外部构造函数"
-    Sensor(
-        perceive_hook::Function,
-        enabled::Bool=true, # 默认值
-    ) = Sensor(enabled, perceive_hook)
+    begin "具体感知器实现"
 
-    "在不检查enabled的情况下"
-    function collect_perception!(sensor::Sensor, args...; kwargs...)
-        sensor.perceive_hook(args...; kwargs...)
+        """
+        基础感知器：一个最简单的感知器
+        - 功能：在被调用时，直接返回其「外调函数」返回的感知对象
+        - 一切都遵循其父抽象类的**默认处理方式**
+        """
+        mutable struct SensorBasic <: AbstractSensor
+            enabled::Bool
+            perceive_hook::Function # 20230710 15:48:03 现不允许置空
+
+            "构造函数"
+            SensorBasic(
+                perceive_hook::Function,
+                enabled::Bool=true, # 默认值
+            ) = new(enabled, perceive_hook)
+        end
+
+        """
+        差分感知器：只对「信号的变化」敏感
+        - 作为「只对变化敏感」的感知器，其**只在信号发生变化**时才输出
+        - 输出机制：生成「当前基线」⇒基线比对⇒差分输出
+            1. 对输入的感知→记忆函数生成「当前记忆」
+            2. 与「感知基线」作比对
+                - 若同：不输出
+                - 若异：输出至收集器，并划定新基线
+        - 「基线函数」约定：`baseline_hook(收集器, 其它附加参数)::Any`
+            - 参数类型：同「外调函数」
+            - 返回类型：任意（可比）值
+        - 启发来源：[2021年会报告](https://www.bilibili.com/video/BV1ND4y1w7M5?t=1299.6&p=9)
+        
+        > 感觉系统不是对所有信号敏感，而是对信号的变化敏感。
+        > 感觉信号没有逻辑意义的真值，但有信号意义的真值。
+        """
+        mutable struct SensorDifference <: AbstractSensor
+            enabled::Bool
+            perceive_hook::Function # 目标对象→Perception
+
+            baseline_hook::Function # 目标对象→基线参考（产生用于对比的值）
+            baseline::Any # 所谓「感知基线」
+
+            SensorDifference(
+                perceive_hook::Function, # 只有在「基线」更新时起效
+                baseline_hook::Function=perceive_hook, # 默认和「外调钩子」是一样的
+                enabled::Bool=true,
+            ) = new(
+                enabled,
+                perceive_hook,
+                baseline_hook,
+                nothing, # 默认为空
+            )
+        end
+
+        "（重载）字符串显示"
+        Base.string(s::SensorDifference)::String = "<NARS $(typeof(s)) | $(s.baseline_hook) -$(enabled(s) ? "-" : "×")> $(s.perceive_hook)>"
+
+        """
+        （重载）差分感知：在不检查enabled的情况下，
+        1. 先执行`baseline_hook`，返回「作为基线的参考对象」
+        2. 把`baseline_hook`返回的「参考对象」与已有的「基线对象」作比对
+            - 若同：不对收集器作处理
+            - 若异：
+                1. 运行`perceive_hook`，真正生成`Perception`对象并将此添加至收集器
+                2. 将「参考对象」作为新的「基线对象」
+        """
+        function collect_perception!(
+            sensor::SensorDifference, 
+            collector::Vector{Perception}, 
+            targets...; targets_kw...
+            )
+            reference::Any = sensor.baseline_hook(collector, targets...; targets_kw...)
+            if sensor.baseline ≠ reference # 使用「基于值的比较」
+                # 【20230716 21:19:53】在已知有`perceive_hook`字段时，无需再调用函数获取
+                perceptions::Union{Vector{Perception}, Nothing} = sensor.perceive_hook(collector, targets...; targets_kw...)
+                !isnothing(perceptions) && push!(
+                    collector,
+                    perceptions...
+                )
+                sensor.baseline = reference
+            end
+        end
+
     end
-
-    "直接调用：（在使能的条件下）执行相应函数钩子"
-    function (ns::Sensor)(args...; kwargs...)
-        ns.enabled && collect_perception!(ns, args...; kwargs...)
-    end
-
-    Base.string(ns::Sensor)::String = "<NARS Senser -$(ns.enabled ? "-" : "×")> $(ns.perceive_hook)>"
-
-    Base.repr(ns::Sensor)::String = string(ns)
-
-    "控制在show中的显示代码"
-    @redefine_show_to_to_repr ns::Sensor
-
 end
 
 end

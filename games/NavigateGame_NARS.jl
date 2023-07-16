@@ -259,7 +259,8 @@ begin "NARS环境实现"
     end
 
     "（对接）"
-    function agent_sensor_hook!(agent::Agent, collector::Vector{Perception}, game::NavigateGame)
+    function agent_sensor_hook!(collector::Vector{Perception}, agent::Agent, game::NavigateGame)
+        @show collector agent game
         # push!(collector, Perception"test"other)
         # 暂时不使用感知：游戏只有对「操作之后」的反馈，而没有「实时状态」的更新
     end
@@ -295,7 +296,7 @@ begin "NARS环境实现"
         # 批量注册感知器
         agent_register!(
             game.env_link,
-            Sensor(
+            SensorBasic(
                 agent_sensor_hook!
             )
         )

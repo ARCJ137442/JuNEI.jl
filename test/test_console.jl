@@ -3,15 +3,6 @@ push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 
 using JuNEI
 
-function input(prompt::String)::String
-    print(prompt)
-    readline()
-end
-
-function inputType()::NARSType
-    NARSType(input("NARS Type: "))
-end
-
 type::NARSType = inputType()
 # type::NARSType = NARSType"ONA"
 isempty(type) && (type = NARSType"ONA")
