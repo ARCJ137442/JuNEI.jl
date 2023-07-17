@@ -101,7 +101,7 @@ begin "统计学辅助：动态更新算法"
     export update!, var, std, z_score
 
     """
-    CMS: Confidence, Mean and mean of Square
+    「均值更新器」CMS: Confidence, Mean and mean of Square
     一个结构体，只用三个值，存储**可动态更新**的均值、标准差
     - 避免「巨量空间消耗」：使用「动态更新」方法
     - 避免「数值存储溢出」：使用「信度」而非「数据量」
@@ -219,6 +219,7 @@ begin "统计学辅助：动态更新算法"
     function z_score(cms::CMS{ValueType}, other::ValueType; corrected::Bool=false) where ValueType
         # 针对「单例情况」：即便标准差为0，z分数也为零（避免「除零错误」）
         diff::ValueType = (other .- cms.m)
+        @debug "zscore"
         return diff==0 ? diff : diff ./ std(cms; corrected=corrected)
     end
 
@@ -282,7 +283,8 @@ begin "========一些OOP宏========"
 
     export @redefine_show_to_to_repr, @abstractMethod, @WIP, @super
 
-    """重定义show方法到repr
+    """
+    重定义show方法到repr
     
     把show方法重定义到repr上，相当于直接打印repr（无换行）
     
@@ -295,6 +297,18 @@ begin "========一些OOP宏========"
             Base.show(io::IO, $(esc(name))::$(esc(type))) = print(io, repr($(esc(name))))
         )
     end
+
+    """
+    TODO：把「只有1|2个字符串参数的结构体」自动添加对应的「字符串宏」以方便输入
+    """
+    # macro auto_str_macro(type::Symbol)
+    #     quote
+    #         macro $(type)_str(s::String)
+    #             :($(type)(s)) # WIP, 很可能会报错
+    #         end
+    #     end |> esc
+    # end
+
 
     "注册抽象方法：不给访问，报错"
     macro abstractMethod()

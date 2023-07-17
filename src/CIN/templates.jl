@@ -67,7 +67,7 @@ end
 
 begin "CINRegister"
 
-    import ..NARSElements: SUBJECT_SELF
+    import ...NAL: SUBJECT_SELF_STR, TERM_SELF_STR # 注意：当前模块嵌套目录是JuNEI.CIN.Templates，所以要三个点回退到NAL
 
     """CINRegister
     注册与相应类型所对应的模板、处理函数

@@ -86,22 +86,16 @@ ds2(collector, 1; a=1) # 再次输入「第一印象」
 @assert last_col < length(collector) # 有所响应！
 @show collector # 会发现重复了原来的感知
 
-# 词项
-
-@show aterm::AtomicTerm = Term(TERM_SELF)
-@assert aterm |> nameof == "SELF"
-@assert aterm.type == TermType"I"
-@assert "$aterm" == "{SELF}"
-
 "量化函数：参数数量总和"
 qf(collector::Vector{Perception}, args...; kwargs...) = (args, kwargs) .|> length |> sum
 
+fzs = FilterZScore(
+    qf, # 量化函数
+    z -> @show z z in -1:1 # 评估函数：「不要太偏离标准差」
+)
 fz::SensorFiltered = SensorFiltered(
     f, 
-    FilterZScore(
-            qf, # 量化函数
-            z -> @show z z in -1:1 # 评估函数：「不要太偏离标准差」
-    )
+    fzs
 )
 @show fz
 
@@ -112,3 +106,6 @@ fz(collector, 1,2; a=1)
 
 @show fz fz.filter.baseline collector
 @assert length(collector) > 0
+
+@assert (fzc = fzs + fzs + fzs) isa FilterChain
+@show fzc

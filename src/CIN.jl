@@ -14,6 +14,7 @@ module CIN
 using Reexport
 
 using ..Utils
+using ..NAL
 using ..NARSElements
 
 # 导入注册表的「数据结构」
@@ -253,7 +254,7 @@ begin "CINCmdline"
     # 📌在使用super调用超类实现后，还能再派发回本类的实现中（见clear_cached_input!）
     "继承：终止程序（暂未找到比较好的方案）"
     function terminate!(cmd::CINCmdline)
-        @debug "CINCmdline terminate!"
+        @debug "CINCmdline terminate! $cmd"
         clear_cached_input!(cmd) # 清空而不置空（不支持nothing）
 
         # 【20230716 9:14:43】TODO：增加「是否强制」选项，用taskkill杀死主进程（java, NAR, main），默认为false
@@ -272,7 +273,6 @@ begin "CINCmdline"
         # 【20230714 13:41:18】即便上面的loop end了，程序也没有真正终止
         cmd.process.exitcode = 0 # 设置标识符（无奈之举），让isAlive(cmd)=false
         @super CINProgram terminate!(cmd) # 构造先父再子，析构先子再父
-        @show cmd # 测试
     end
 
     "重载：直接添加至命令"

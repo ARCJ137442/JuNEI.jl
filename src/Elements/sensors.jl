@@ -1,7 +1,13 @@
-begin "抽象感知器 & 基础感知器"
+# 统一放置export
+export AbstractSensor, SensorBasic
+export enabled, perceive_hook, collect_perception!
 
-    export AbstractSensor, SensorBasic
-    export enabled, perceive_hook, collect_perception!
+export AbstractPerceptionFilter, FilterDifference, FilterZScore, FilterChain
+export has_baseline
+
+export SensorFiltered, SensorDifference
+
+begin "抽象感知器 & 基础感知器"
 
     """抽象出一个「NARS感知器」
 
@@ -86,8 +92,6 @@ begin "抽象感知器 & 基础感知器"
 end
 
 begin "感知过滤器：抽象于「有过滤的感知器」"
-
-    export AbstractPerceptionFilter, FilterDifference, has_baseline
 
     "抽象的「感知过滤器」"
     abstract type AbstractPerceptionFilter end
@@ -183,8 +187,6 @@ end
 
 begin "z-分数过滤器"
 
-    export FilterZScore
-
     """
     Z分数过滤器
     - 「基线函数」把感知到的数据全部量化成数值
@@ -254,9 +256,43 @@ begin "z-分数过滤器"
     end
 end
 
-begin "过滤感知器"
+begin "级联过滤器"
 
-    export SensorFiltered, SensorDifference
+    "级联过滤器：把上一个过滤器的输出，看做下一个过滤器的输入条件"
+    struct FilterChain <: AbstractPerceptionFilter
+
+        "过滤器序列（只持有引用）"
+        filters::Vector{AbstractPerceptionFilter}
+
+        "构造方法"
+        FilterChain(filters...) = new(filters |> collect |> Vector{AbstractPerceptionFilter})
+    end
+
+    "（重载）字符串显示"
+    Base.string(fc::FilterChain)::String = "#<=$(join(fc.filters, "~"))=>#"
+
+    """
+    （实现）直接调用：链式调用所有过滤器
+    """
+    function (fz::FilterChain)(collector, targets...; targets_kw...)::Bool
+        for filter::AbstractPerceptionFilter in fz.filters
+            # 若其中一个过滤器过滤掉了
+            if !filter(collector, targets...; targets_kw...)
+                return false
+            end
+        end
+        # 若所有过滤器都通过了
+        return true
+    end
+
+    "trick：用加法实现级联"
+    (f1::AbstractPerceptionFilter) + (f2::AbstractPerceptionFilter) = FilterChain(f1,f2)
+    (fc::FilterChain) + (f2::AbstractPerceptionFilter) = FilterChain((fc.filters)...,f2)
+    (f1::AbstractPerceptionFilter) + (fc::FilterChain) = FilterChain(f1,(fc.filters)...)
+
+end
+
+begin "过滤感知器"
     
     """
     【20230717 15:18:40】原「差分感知器」

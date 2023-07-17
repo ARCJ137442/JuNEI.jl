@@ -51,23 +51,23 @@ Dict(
         (np::Perception) -> "<{$(np.subject)} --> [$(np.adjective)]>. :|:",
         
         # 注册操作
-        (op::Operation) -> "<(*,$TERM_SELF) --> ^$(op.name))>. :|:",
+        (op::Operation) -> "<(*,$TERM_SELF_STR) --> ^$(op.name))>. :|:",
 
         # 无意识操作
-        (op::Operation) -> "<(*,$TERM_SELF) --> ^$(op.name))>. :|:",
+        (op::Operation) -> "<(*,$TERM_SELF_STR) --> ^$(op.name))>. :|:",
         
         # 目标
         (ng::Goal, is_negative::Bool) -> (
             is_negative ? # 括号里可以用换行分隔三元运算符「? :」
-              "(--, <$TERM_SELF --> [$(ng.name)]>)! :|:" # 一个「负向目标」，指导「实现其反面」
-            : "<$TERM_SELF --> [$(ng.name)]>! :|:"
+              "(--, <$TERM_SELF_STR --> [$(ng.name)]>)! :|:" # 一个「负向目标」，指导「实现其反面」
+            : "<$TERM_SELF_STR --> [$(ng.name)]>! :|:"
         ),
         
         # 奖
-        (ng::Goal) -> "<$TERM_SELF --> [$(ng.name)]>. :|:",
+        (ng::Goal) -> "<$TERM_SELF_STR --> [$(ng.name)]>. :|:",
         
         # 惩
-        (ng::Goal) -> "<$TERM_SELF --> [$(ng.name)]>. :|: %0%", # 通用的语法是「"(--,<$TERM_SELF --> [%s]>). :|:"」
+        (ng::Goal) -> "<$TERM_SELF_STR --> [$(ng.name)]>. :|: %0%", # 通用的语法是「"(--,<$TERM_SELF_STR --> [%s]>). :|:"」
 
     ),
 
@@ -104,7 +104,7 @@ Dict(
         (np::Perception) -> "<{$(np.subject)} --> [$(np.adjective)]>. :|:",
         
         # 注册操作
-        (op::Operation) -> "(*,$TERM_SELF, ^$(op.name)). :|:",
+        (op::Operation) -> "(*,$TERM_SELF_STR, ^$(op.name)). :|:",
 
         # 无意识操作
         (op::Operation) -> "", # ONA无需Babble
@@ -112,15 +112,15 @@ Dict(
         # 目标
         (ng::Goal, is_negative::Bool) -> (
             is_negative ?
-              "(--, <$TERM_SELF --> [$(ng.name)]>)! :|:" # 一个「负向目标」，指导「实现其反面」
-            : "<$TERM_SELF --> [$(ng.name)]>! :|:"
+              "(--, <$TERM_SELF_STR --> [$(ng.name)]>)! :|:" # 一个「负向目标」，指导「实现其反面」
+            : "<$TERM_SELF_STR --> [$(ng.name)]>! :|:"
         ),
         
         # 奖
-        (ng::Goal) -> "<$TERM_SELF --> [$(ng.name)]>. :|:",
+        (ng::Goal) -> "<$TERM_SELF_STR --> [$(ng.name)]>. :|:",
         
         # 惩
-        (ng::Goal) -> "<$TERM_SELF --> [$(ng.name)]>. :|: {0}",
+        (ng::Goal) -> "<$TERM_SELF_STR --> [$(ng.name)]>. :|: {0}",
 
     ),
 
@@ -153,23 +153,23 @@ Dict(
         (np::Perception) -> "({$(np.subject)} --> [$(np.adjective)]). :|:",
         
         # 注册操作
-        (op::Operation) -> "((*,$TERM_SELF) --> $(op.name)). :|:",
+        (op::Operation) -> "((*,$TERM_SELF_STR) --> $(op.name)). :|:",
 
         # 无意识操作
-        (op::Operation) -> "((*,$TERM_SELF) --> $(op.name))). :|:",
+        (op::Operation) -> "((*,$TERM_SELF_STR) --> $(op.name))). :|:",
         
         # 目标
         (ng::Goal, is_negative::Bool) -> (
             is_negative ?
-              "($TERM_SELF --> (-, [$(ng.name)]))! :|:" # 一个「负向目标」，指导「实现其反面」
-            : "($TERM_SELF --> [$(ng.name)]>! :|:"
+              "($TERM_SELF_STR --> (-, [$(ng.name)]))! :|:" # 一个「负向目标」，指导「实现其反面」
+            : "($TERM_SELF_STR --> [$(ng.name)]>! :|:"
         ),
         
         # 奖
-        (ng::Goal) -> "($TERM_SELF --> [$(ng.name)]). :|:",
+        (ng::Goal) -> "($TERM_SELF_STR --> [$(ng.name)]). :|:",
         
         # 惩
-        (ng::Goal) -> "($TERM_SELF --> [$(ng.name)]). :|: %0.00;0.90%",
+        (ng::Goal) -> "($TERM_SELF_STR --> [$(ng.name)]). :|: %0.00;0.90%",
 
     ),
 
@@ -194,23 +194,23 @@ Dict(
         (np::Perception) -> "<{$(np.subject)} --> [$(np.adjective)]>.", # 暂时移除时态「 :|:」（OpenJunars暂不支持时序推理）
         
         # 注册操作
-        (op::Operation) -> "<(*,$TERM_SELF) --> ^$(op.name))>.",
+        (op::Operation) -> "<(*,$TERM_SELF_STR) --> ^$(op.name))>.",
 
         # 无意识操作
-        (op::Operation) -> "<(*,$TERM_SELF) --> ^$(op.name))>.",
+        (op::Operation) -> "<(*,$TERM_SELF_STR) --> ^$(op.name))>.",
         
         # 目标
         (ng::Goal, is_negative::Bool) -> (
             is_negative ? # 括号里可以用换行分隔三元运算符「? :」
-              "(--, <$TERM_SELF --> [$(ng.name)]>)!" # 一个「负向目标」，指导「实现其反面」
-            : "<$TERM_SELF --> [$(ng.name)]>!"
+              "(--, <$TERM_SELF_STR --> [$(ng.name)]>)!" # 一个「负向目标」，指导「实现其反面」
+            : "<$TERM_SELF_STR --> [$(ng.name)]>!"
         ),
         
         # 奖
-        (ng::Goal) -> "<$TERM_SELF --> [$(ng.name)]>.",
+        (ng::Goal) -> "<$TERM_SELF_STR --> [$(ng.name)]>.",
         
         # 惩
-        (ng::Goal) -> "<$TERM_SELF --> [$(ng.name)]>. %0%", # 通用的语法是「"(--,<$TERM_SELF --> [%s]>). :|:"」
+        (ng::Goal) -> "<$TERM_SELF_STR --> [$(ng.name)]>. %0%", # 通用的语法是「"(--,<$TERM_SELF_STR --> [%s]>). :|:"」
 
     ),
 )

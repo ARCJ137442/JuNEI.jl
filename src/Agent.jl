@@ -342,7 +342,7 @@ begin "Agent"
         "添加「操作注册」入Program：让NARS「知道」有这个操作（对应PyNEI的register_basic_operation）"
         function register!(agent::Agent, op::Operation)
             # 置入语句
-            @info "register operation $op"
+            @debug "register operation $op"
             put!(
                 agent.program,
                 getRegister(

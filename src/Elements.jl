@@ -14,9 +14,12 @@
 module NARSElements
 
 using ..Utils # 一个「.」表示当前模块下，两个「.」表示上一级模块下
+using ..NAL
 
 using Reexport # 使用reexport自动重新导出
-@reexport import Base: nameof, isempty, getindex, string, repr, show, (≠) #=
+@reexport import Base: nameof, isempty, getindex, string, repr, show, 
+                       (≠), (+) # 感知器
+#= 
 导入Base，并向Base函数中添加方法
 防止调用报错「no method matching isempty(::Tuple{String})
 You may have intended to import Base.isempty」
@@ -29,12 +32,7 @@ export Goal, @Goal_str
 
 export Operation, @Operation_str, EMPTY_Operation, has_parameters
 
-export SUBJECT_SELF, TERM_SELF
 export Perception, @Perception_str
-
-
-# NAL元素 #
-include("Elements/nal.jl")
 
 begin "目标"
 
@@ -69,19 +67,15 @@ begin "感知"
 
     # 感知语句 #
 
-    "内置常量：NARS内置对象名「自我」"
-    const SUBJECT_SELF::String = "SELF"
-    
-    "表示「自我」的对象"
-    const TERM_SELF::String = "{$SUBJECT_SELF}"
-
     """抽象出一个「NARS感知」
 
     主要功能：作为NARS感知的处理对象
 
     - 记录其「主语」「表语」，且由参数**唯一确定**
 
-    TODO：类似「字符串」的静态存储方法（减少对象开销）
+    TODO：
+    - 类似「字符串」的静态存储方法（减少对象开销）
+    - 将其中的String变成Term（真正的「词项」）
     """
     struct Perception
 
@@ -95,7 +89,7 @@ begin "感知"
         Perception(subject::String, adjective::String) = new(subject, adjective)
 
         "省略写法：默认使用「自我」做主语（单参数，不能用默认值）"
-        Perception(adjective::String) = new(SUBJECT_SELF, adjective)
+        Perception(adjective::String) = new(SUBJECT_SELF_STR, adjective)
     end
 
     "插值入字符串"

@@ -150,11 +150,10 @@ begin "CINOpenJunars"
     # 📌在使用super调用超类实现后，还能再派发回本类的实现中（见clear_cached_input!）
     "继承：终止程序（暂未找到比较好的方案）"
     function terminate!(cj::CINJunars)
-        @debug "CINJunars terminate!"
+        @debug "CINJunars terminate! $cj"
         finalize(cj.oracle)
         cj.oracle = nothing # 置空
         @super CINProgram terminate!(cj) # 构造先父再子，析构先子再父
-        @show cj # 测试
     end
 
     "重载：直接添加命令（不检测「是否启动」）"
@@ -221,6 +220,7 @@ begin "CINOpenJunars"
             end
             # 【20230714 23:12:22】因cycle!中的「absorb!」方法，没法从buffer捕获新语句
             # 尝试在任务缓冲区追踪新增语句（源自OpenJunars inference\derivetask.jl）
+            # 💡尝试自己实现cycle!？
             if !isempty(cj.oracle.taskbuffer)
                 @show cj.oracle.taskbuffer
             end
