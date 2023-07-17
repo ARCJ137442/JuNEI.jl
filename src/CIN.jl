@@ -31,27 +31,13 @@ export isAlive, launch!, terminate!
 export getNARSType, getRegister # async_read_out
 
 export add_to_cmd!, cycle!
-export cache_input!, num_cached_input, cache_input!, clear_cached_input!, flush_cached_input!
+export cached_inputs, cache_input!, num_cached_input, cache_input!, clear_cached_input!, flush_cached_input!
 
 export @CINRegister_str # ?可以移动到templates里？
 
 
-begin "因为Utils引用问题迁移过来的宏"
-
-    """承载超类的方法：默认第一个参数是需要super的参数"""
-    macro super(super_class::Symbol, f_expr::Expr)
-        # :(@super Tuple{$super_class} $f_expr) # 无法解决递归调用问题：「Main.cmd」导致的「UndefVarError: `cmd` not defined」
-        # 不需要过多的esc包装，只需要新建一个符号，在这个符号下正常进行插值即可
-        # 📌方法：「@show @macroexpand」两个方法反复「修改-比对」直到完美
-        :(
-            invoke(
-                $(f_expr.args[1]), # 第一个被调用函数名字
-                Tuple{$super_class}, # 第二个超类类型
-                $((f_expr.args[2:end] .|> esc)...) # 第三个被调用函数的参数集
-            ) # 📝「$((args .|> esc)...」先使用esc获得局部变量，再使用「...」展开参数集
-        )
-    end    
-end
+# begin "因为Utils引用问题迁移过来的宏"
+# end
 
 begin "CINProgram" # 使用这个「代码块」将功能相近的代码封装到一起
     
@@ -193,9 +179,7 @@ begin "CINCmdline"
     
     "存活依据：主进程非空"
     isAlive(cmd::CINCmdline)::Bool = 
-        hasproperty(cmd, :process) && # 是否有
-        isdefined(cmd, :process) && # 定义了吗
-        !isnothing(cmd.process) && # 是否为空
+        !@soft_isnothing_property(cmd, :process) && # 进程是否非空
         !eof(cmd.process) && # 是否「文件结束」
         cmd.process.exitcode != 0 && # 退出码正常吗
         process_running(cmd.process) && # 是否在运行
@@ -225,7 +209,7 @@ begin "CINCmdline"
                 process::Base.Process = open(`cmd`, "r+") # 打开后的进程不能直接赋值给结构体的变量？
                 cmd.process = process
                 sleep(1)
-                launch_cmd_str::String = replace("$(startup_cmds[1])"[2:end-1], "'" => "\"")
+                launch_cmd_str::String = replace("$launch_cmd"[2:end-1], "'" => "\"") # Cmd→String
                 # 不替换「'」为「"」则引发「文件名或卷标语法不正确。」
                 put!(cmd, launch_cmd_str) # Cmd转String
 
@@ -309,7 +293,7 @@ begin "CINCmdline"
         add_to_cmd!(cmd, "$steps") # 增加指定步骤（println自带换行符）
     end
     
-    "【独有】缓存的命令（使用公共属性实现）"
+    "【独有】缓存的命令"
     cached_inputs(cmd::CINCmdline)::Vector{String} = cmd.cached_inputs
     
     "缓存的输入数量" # 注：使用前置宏无法在大纲中看到方法定义
@@ -319,10 +303,8 @@ begin "CINCmdline"
     cache_input!(cmd::CINCmdline, input::String) = push!(cmd.cached_inputs, input)
 
     "清除缓存的输入"
-    function clear_cached_input!(cmd::CINCmdline)::Vector{String}
-        empty!(cmd.cached_inputs)
-    end
-    
+    clear_cached_input!(cmd::CINCmdline) = empty!(cmd.cached_inputs)
+
     "将所有缓存的输入全部*异步*写入CIN，并清除缓存"
     function flush_cached_input!(cmd::CINCmdline)
         for cached_input ∈ cmd.cached_inputs

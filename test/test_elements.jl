@@ -52,7 +52,7 @@ ds0(collector, 2; a=3) # 值发生变化，会再添加一次感知
 
 # 测试：使用指定「基线函数」的差分感知器
 "Special-Baseline Difference: " |> println
-@show ds1 = SensorDifference{Tuple}(f, df, ≠, false)
+@show ds1 = SensorDifference(Tuple, f, df, ≠, false)
 @assert !ds1(collector) # 没激活就调用，默认为false
 ds1.enabled = true # 激活
 empty!(collector) # 清空
@@ -71,10 +71,10 @@ ds1(collector, 1; a=1, b=2) # 再次触发添加
 - 💡这样可以用于感知「稳定性」
 =#
 @show ds2 = SensorDifference(f, f, (==), true) # 变不等为等号
-@assert enabled(ds2) && !has_baseline(ds2) # baseline尚未初始化
+@assert enabled(ds2) && !has_baseline(ds2.filter) # baseline尚未初始化
 empty!(collector)
 ds2(collector, 1; a=1) # 建立「第一印象」
-@assert has_baseline(ds2) # 这时候内部baseline建立
+@assert has_baseline(ds2.filter) # 这时候内部baseline建立
 last_col::Integer = length(collector)
 @assert !isempty(collector) # 「第一印象」被输出
 @show collector # 展示「第一印象」
@@ -93,5 +93,22 @@ ds2(collector, 1; a=1) # 再次输入「第一印象」
 @assert aterm.type == TermType"I"
 @assert "$aterm" == "{SELF}"
 
+"量化函数：参数数量总和"
+qf(collector::Vector{Perception}, args...; kwargs...) = (args, kwargs) .|> length |> sum
 
-using JuNEI.CIN
+fz::SensorFiltered = SensorFiltered(
+    f, 
+    FilterZScore(
+            qf, # 量化函数
+            z -> @show z z in -1:1 # 评估函数：「不要太偏离标准差」
+    )
+)
+@show fz
+
+empty!(collector)
+
+fz(collector, 1,2; a=1)
+@assert isdefined(fz.filter, :baseline)
+
+@show fz fz.filter.baseline collector
+@assert length(collector) > 0

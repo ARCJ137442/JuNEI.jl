@@ -10,7 +10,7 @@ cj = CINJunars(
 launch!(cj)
 # @show cj # 启动后一打印一大片。。。
 
-sleep(0.5)
+sleep(5)
 
 cjput(inp) = put!(cj, inp)
 
@@ -27,6 +27,7 @@ cycle!(cj, 5)
 ] |> cjput
 cycle!(cj, 20)
 @show cj.oracle.taskbuffer
+@assert isAlive(cj)
 
 #= 目前三段论推理可能会出现错误
     ERROR: LoadError: UndefVarError: `conversion` not defined

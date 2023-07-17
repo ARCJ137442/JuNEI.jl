@@ -41,17 +41,18 @@ include("Environment.jl")
     - Environment
 """
 
-import TOML: parse
-
 "从Project.toml中获取版本"
 function print_package_informations()
     # 获得文件路径
     project_file_path = joinpath(dirname(@__DIR__), "Project.toml")
     # 读取文档内容，转换成toml数据
-    project_file_content = read(project_file_path, String) |> parse
+    project_file_content = read(project_file_path, String)
+    # 使用正则匹配，这样就无需依赖TOML库
+    name = match(r"name *= *\"(.*?)\"", project_file_content)[1]
+    version = match(r"version *= *\"(.*?)\"", project_file_content)[1]
     # 打印信息（附带颜色）【20230714 22:25:42】现使用`printstyled`而非ANSI控制字符
     printstyled(
-        "$(project_file_content["name"]) v$(project_file_content["version"])\n", 
+        "$name v$version\n", 
         bold=true,
         color=:light_green
     )
@@ -69,7 +70,7 @@ function julia_main()::Cint
     # 启动终端
     console = Console(
         inputType("NARS Type: "),
-        input("Executable Path: "),
+        input"Executable Path: ",
     )
 
     launch!(console)
