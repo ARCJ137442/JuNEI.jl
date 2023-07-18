@@ -272,7 +272,8 @@ begin "CINCmdline"
 
         # 【20230714 13:41:18】即便上面的loop end了，程序也没有真正终止
         cmd.process.exitcode = 0 # 设置标识符（无奈之举），让isAlive(cmd)=false
-        @super CINProgram terminate!(cmd) # 构造先父再子，析构先子再父
+        # 【20230718 13:08:50】📝使用「Base.invoke」或「@invoke」实现Python的`super().方法`
+        @invoke terminate!(cmd::CINProgram) # 构造先父再子，析构先子再父
     end
 
     "重载：直接添加至命令"
@@ -319,38 +320,37 @@ begin "CINJuliaModule"
     
     """囊括所有使用「Julia模块」实现的CIN
 
+    一些看做「共有属性」的getter
+    - modules(::CINJuliaModule)::Dict{String, Module}: 存储导入的Junars模块
+        - 格式：「模块名 => 模块对象」
     """
     abstract type CINJuliaModule <: CINProgram end
 
     "实现：复制一份副本（所有变量），但不启动"
     copy(jm::CINJuliaModule)::CINJuliaModule = CINJuliaModule(
         jm.type,
-        jm.package_paths,
-        jm.package_names,
         jm.out_hook,
-        copy(cached_inputs), # 可变数组需要复制
+        jm.cached_inputs |> copy, # 可变数组需要复制
     )
     "similar类似copy"
     similar(jm::CINJuliaModule)::CINJuliaModule = copy(jm)
 
-    "导入路径&导入Julia包"
-    function import_external_julia_package(package_paths::Union{AbstractArray, Tuple}, package_names::Union{AbstractArray, Tuple})
-        # 添加所有路径
-        push!(LOAD_PATH, package_paths...)
+    "（API）获取所持有的模块::Dict{String, Module}"
+    modules(::CINJuliaModule)::Dict{String,Module} = @abstractMethod
 
-        # using所有包
-        @info "Using packages $package_names"
-        for package_name in package_names
-            @eval using $(Symbol(package_name))
+    """
+    检查CIN的模块导入情况
+    - 返回：检查的CIN「是否正常」
+    """
+    function check_modules(jm::CINJuliaModule)::Bool
+        # 遍历检查所有模块
+        for module_name in jm.module_names
+            if !haskey(modules(jm), module_name) || isnothing(modules(jm)[module_name]) # 若为空
+                @debug "check_modules ==> 未载入模块`$module_name`！"
+                return false
+            end
         end
-    end
-
-    function import_external_julia_package(package_path::AbstractString, package_names::Union{AbstractArray, Tuple})
-        import_external_julia_package((package_path,), package_names)
-    end
-
-    function import_external_julia_package(package_path::AbstractString, package_name::AbstractString)
-        import_external_julia_package((package_path,), (package_name,))
+        return true
     end
 
 end
@@ -409,6 +409,11 @@ begin "注册后的一些方法（依赖注册表）"
     "Program→Type→Register（复现Python中各种「获取模板」的功能）" # 尽可能用Julia原装方法
     function Base.convert(::Core.Type{CINRegister}, program::CINProgram)::CINRegister
         CIN_REGISTER_DICT[convert(NARSType, program)]
+    end
+
+    "派发NARSType做构造方法"
+    function CINRegister(nars_type::NARSType)
+        Base.convert(CINRegister, nars_type)
     end
 
     "派发Program做构造方法"

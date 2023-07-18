@@ -336,6 +336,7 @@ begin "========一些OOP宏========"
     用于复现类似Python中的「super()」语法（"一组符号" 直接使用Tuple{各组符号的Type}）
     - 等价于Python的`super().函数(参数表达式)`
     
+    【20230718 13:09:51】现可直接使用`@invoke 函数(参数::超类类型)`表示
     """
     macro super(super_class::Expr, f_expr::Expr)
         # @show super_class f_expr
@@ -366,7 +367,7 @@ end
 begin "其它辅助函数"
 
     export input, @input_str
-    export <|
+    export import_external_julia_package
 
     "复现Python的「input」函数"
     function input(prompt::String="")::String
@@ -382,6 +383,56 @@ begin "其它辅助函数"
     macro input_str(prompt::String)
         :(input($prompt))
     end
+
+    """
+        import_external_julia_package(package_paths::Union{AbstractArray, Tuple}, module_names::Union{AbstractArray, Tuple})::Dict{String,Module}
+        
+    导入路径&导入Julia包
+    - 功能：根据现有的「包路径」与「模块名」，**动态**导入外部Julia模块
+    - 返回：「模块名String => 模块对象Module」的字典（可被复用）
+        - 【20230718 11:26:40】现在是用import把Module作为符号导出，而不再用using污染命名空间了！
+    """
+    function import_external_julia_package(
+        package_paths::Union{AbstractArray, Tuple}, 
+        module_names::Union{AbstractArray, Tuple}
+        )::Dict{String,Module}
+        # 添加所有路径
+        push!(LOAD_PATH, package_paths...)
+        @debug "Added paths $package_paths"
+
+        # 导入所有包
+        @debug "importing packages $module_names"
+
+        result::Dict{String, Module} = Dict{String,Module}()
+        for package_name in module_names
+            m::Union{Module,Nothing} = nothing
+            try # 每次都尝试一下（可能有「模块没找到」错误）
+                @eval import $(Symbol(package_name))
+                m = @eval $(Symbol(package_name))
+                @debug "Imported $m module!!! XD"
+                result[package_name] = m # 将模块放入返回值
+            catch e
+                @error "import_external_julia_package ==> $e"
+            end
+        end
+
+        # 检查
+        if (diff = length(module_names) - length(result)) > 0
+            @error "模块未导入完全！缺少 $diff 个模块。以下是已导入模块：\n$result"
+        end
+        @debug "packages imported! result = $result"
+        return result
+    end
+    
+    import_external_julia_package(
+        package_path::AbstractString, 
+        module_names::Union{AbstractArray, Tuple}
+        )::Dict{String,Module} = import_external_julia_package((package_path,), module_names)
+
+    import_external_julia_package(
+        package_path::AbstractString, 
+        package_name::AbstractString
+        )::Dict{String,Module} = import_external_julia_package((package_path,), (package_name,))
     
 end
 

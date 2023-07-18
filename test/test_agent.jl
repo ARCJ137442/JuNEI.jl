@@ -2,15 +2,7 @@ push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
 push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 
 using JuNEI
-
-function input(prompt::String)::String
-    print(prompt)
-    readline()
-end
-
-function inputType()::NARSType
-    NARSType(input("NARS Type: "))
-end
+using JuNEI.Utils
 
 # type::NARSType = inputType()
 type::NARSType = NARSType"OpenNARS"
@@ -77,5 +69,12 @@ cycle!(agent, 5)
 
 terminate!(agent)
 
+sleep(1)
+
+# 暂且需要这样清理残留进程
+@softrun `taskkill -f -im java.exe` |> run
+@softrun `taskkill -f -im javaw.exe` |> run
+
 "Agent test ended." |> println
 
+sleep(0.5)

@@ -5,6 +5,7 @@
 - OpenNARS(Java)
 - ONA(C/C++)
 - Python(Python)
+- Junars(Julia)【WIP】
 - 【未来还可更多】
 """
 
@@ -173,10 +174,10 @@ Dict(
 
     ),
 
-    NARSType"JuNARS" => CINRegister(
+    TYPE_JUNARS => CINRegister(
 
         # 使用特制Junars类控制
-        CINJuliaModule,
+        CINJunars,
 
         # 程序启动命令（不使用）
         (executable_path::String) -> nothing,

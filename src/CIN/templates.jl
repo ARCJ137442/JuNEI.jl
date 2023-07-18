@@ -13,7 +13,7 @@ import ..Utils: input
 
 # 导出
 
-export NARSType, @NARSType_str, inputType
+export NARSType, @NARSType_str, inputType, unsafe_inputType
 export CINRegister, @CINRegister_str
 
 
@@ -49,6 +49,11 @@ begin "NARSType"
         function isempty(nars_type::NARSType)::Bool
             isempty(nars_type.name)
         end
+
+        "非健壮输入（合法的）NARSType"
+        function unsafe_inputType(prompt::AbstractString="")::NARSType
+            return prompt |> input |> NARSType
+        end
         
         "健壮输入NARSType"
         function inputType(prompt::AbstractString="")::NARSType
@@ -56,7 +61,7 @@ begin "NARSType"
                 try
                     return prompt |> input |> NARSType
                 catch
-                    "Invalid Input!" |> println
+                    printstyled("Invalid Input!\n", color=:red)
                 end
             end
         end

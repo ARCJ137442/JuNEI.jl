@@ -31,7 +31,7 @@ mutable struct Console
         ) = begin
         # 先构造自身
         console = new(
-            CINCmdline(
+            CINProgram( # 使用CIN.jl/CINProgram的构造函数，自动寻找合适类型
                 type, # 传入Program
                 executable_path, # CINCmdline
                 identity, # 占位符
@@ -58,14 +58,13 @@ end
 function console!(console::Console)
     while true
         console.launched = true
-        print(console.input_prompt)
-        input = readline(stdin)
-        put!(console.program, input)
+        inp = input(console.input_prompt)
+        put!(console.program, inp)
     end
 end
 
 function terminate!(console::Console)
     terminate!(console.program)
 end
-    
+
 end

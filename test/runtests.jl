@@ -19,6 +19,7 @@ const TEST_FILE_LIST::Vector{String} = [
     "test_elements.jl"
     "test_templates.jl"
     "test_CIN.jl"
+    "test_junars.jl"
     "test_multiprocess.jl"
     "test_agent.jl"
     "test_console.jl"
