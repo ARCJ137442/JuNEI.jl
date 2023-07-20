@@ -4,6 +4,8 @@ push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 using JuNEI
 using JuNEI.Utils
 
+"================Test for Agent================" |> println
+
 # type::NARSType = inputType()
 type::NARSType = NARSType"OpenNARS"
 @show @__DIR__

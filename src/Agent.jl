@@ -20,7 +20,8 @@ export getNARSType, getRegister
 export has_hook, use_hook, out_hook!
 export isAlive, terminate!, cycle!, activate!, update!
 export goals, register!, praise!, punish!
-export getOperations, numStoredOperations, remind_operations, store!, reduce!, clear_stored_operations
+export getOperations, numStoredOperations, remind_operations, 
+       store!, reduce!, clear_stored_operations, operations_itor
 export babble, babble!
 
 begin "Agent Stats"
@@ -325,6 +326,12 @@ begin "Agent"
 
         "返回所有已注册的操作（类列表形式，可collect）"
         getOperations(agent::Agent)::Base.KeySet = keys(agent.operations)
+
+        """返回所有操作的迭代器（不论存量是否为零）"""
+        operations_itor(agent::Agent) = (
+            (op, num)
+            for (op,num) in agent.operations
+        )
 
         "返回缓存的操作数量（值的总和）"
         numStoredOperations(agent::Agent)::Integer = agent.operations |> values |> sum

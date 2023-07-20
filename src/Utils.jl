@@ -51,7 +51,7 @@ begin "宏辅助"
     macro soft_isnothing_property(object::Symbol, property_name::QuoteNode)
         # 「作为一个符号导入的符号」property_name是一行「输出一个符号的Quote代码」如「:(:property))」
         # 对「:属性名」的「QuoteNode」，提取其中value的Symbol
-        #= 📝对「在宏中重用其它宏」的方法总结
+        #= 📝对「在宏中重用其它宏」「宏内嵌入宏」的方法总结
             1. 使用`:(@宏 $(参数))`的形式，避免「边定义边展开」出「未定义」错
             2. 对「待展开符号」进行esc处理，避免在表达式返回前解析（作用域递交）
         =#
@@ -281,7 +281,8 @@ end
 
 begin "========一些OOP宏========"
 
-    export @redefine_show_to_to_repr, @abstractMethod, @WIP, @super
+    export @redefine_show_to_to_repr, @abstractMethod, @WIP, 
+           @super, @wrap_link_in, @generate_gset_link
 
     """
     重定义show方法到repr
@@ -362,6 +363,69 @@ begin "========一些OOP宏========"
         )
     end
 
+    """
+    通过一个宏，自动给（先前已实现且应用的）一个结构增加一个「嵌入对象」的链接
+
+    - 不干扰*原结构*的应用方式
+    - 支持对「嵌入对象」的访问与管理
+
+    【20230720 23:29:29】目前实现：
+    - 追加一个「嵌入对象」属性到原结构中（实现为「最后的属性定义」）
+    - 追加定义两个方法，用于读写原结构的「嵌入对象」（在下一个宏实现）
+    - 目前实现痛点：
+        - 只能在**无内部构造方法定义**时使用原装构造方法，方可为不可变类型设置「嵌入对象」
+        - 无法很好处理「原结构的文档字符串」（block对象无法@doc）⇒拆分实现
+    """
+    macro wrap_link_in(link_prop_def::Expr, struct_def::Expr)
+        # @show e
+        # dump(link_prop_def)
+        global ex=struct_def
+    
+        # 表达式头「struct」
+        struct_head::Symbol = struct_def.head
+        @assert struct_head==:struct "Expression isn't struct" # 断言
+    
+        # 表达式参数「是否可变::Bool，结构体名::Symbol，结构体代码(Expr block)」
+        _, _, code::Expr = struct_def.args
+        
+        # 增加属性定义到最后（确保是最后一个变量，而不影响原来的构造函数）
+        push!(code.args, link_prop_def)
+    
+        # 📌生成区块Expr(:block, 各代码块)也不是不行，但为了兼容「文档字符串」暴露struct，只能拆分
+        struct_def |> esc # 📌不使用esc则「立即解析」const报错「expected assignment after "const" around [...]」
+    end
+    
+    """
+    （独立成宏）追加定义两个方法，用于读写原结构的「嵌入对象」
+    """
+    macro generate_gset_link(struct_name::Symbol, link_prop_def::Expr)
+    
+        # 外加属性参数：`env_prop_name::env_type_name`
+        link_prop_name::Symbol, link_type_name::Symbol = link_prop_def.args
+    
+        # 📌直接在代码中插入`get_$env_prop_name`不可取：报错「syntax: "env_prop_name(x::S)" is not a valid function argument name」
+        get_func_name::Symbol = Symbol("get_$link_prop_name")
+        set_func_name::Symbol = Symbol("set_$link_prop_name")
+    
+        quote # 插入「读写外加变量」定义
+            "读取「外加属性」"
+            $get_func_name(x::$struct_name)::$link_type_name = x.$link_prop_name
+    
+            "写入「外加属性」"
+            function $set_func_name(x::$struct_name, value::$link_type_name)
+                x.$link_prop_name = value
+            end
+    
+            # 不使用「『外加属性』作为第一个位置参数」的方法定义：若参数只有一个，会触发递归
+    
+            # 疑难杂症：引入这个「新关键字参数」要报错「UndefKeywordError: keyword argument `$env_prop_name` not assigned」
+            # "新外部构造函数：用关键字参数引入「外加属性」，但需要在其它参数都指定的情况下"
+            # function $struct_name(args...; $env_prop_name::$env_type_name, args_kw...)
+            #     @show $env_prop_name args args_kw
+            #     $struct_name(args..., $env_prop_name; args_kw...)
+            # end
+        end |> esc # 避免被立即解析
+    end
 end
 
 begin "其它辅助函数"

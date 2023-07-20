@@ -180,7 +180,7 @@ begin "CINCmdline"
     
     "存活依据：主进程非空"
     isAlive(cmd::CINCmdline)::Bool = 
-        !@soft_isnothing_property(cmd, :process) && # 进程是否非空
+        !@soft_isnothing_property(cmd.process) && # 进程是否非空
         !eof(cmd.process) && # 是否「文件结束」
         cmd.process.exitcode != 0 && # 退出码正常吗
         process_running(cmd.process) && # 是否在运行

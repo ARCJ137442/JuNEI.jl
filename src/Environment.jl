@@ -14,10 +14,13 @@
 module NARSEnvironment
 
 # 导入
+using Reexport
+@reexport import Base: (==)
+
 using ..NARSElements
 using ..NARSAgent
 
-import ..NARSAgent: isAlive # 重名覆盖
+import ..NARSAgent: isAlive, operations_itor # 重名覆盖
 
 # 导出
 export Environment
@@ -26,6 +29,7 @@ export register_agent!, create_agent!, activate_all_agents!
 export discord_agent, discord_all_agents!
 export agent_babble!, agent_praise!, agent_punish!, agent_put!, agent_register!, agent_update!
 export operations_itor
+export @wrap_env_link, @generate_gset_env_link, get_env_link, set_env_link
 
 
 begin "Environment"
@@ -47,7 +51,69 @@ begin "Environment"
                 Dict{Identifier, Agent}(), # 空字典
             )
         end
+
+        """
+        使用「标识符 => 智能体」对列的初始化
+        - 类字典初始化
+
+        📝Julia限制可变长参数类型无需对应「id_agent_pairs」的实际类型
+        - 用「`Vararg{Type}`」替代「`arg...` 且每个arg元素都是Type」
+        """
+        function Environment{Identifier}(
+            id_agent_pairs::Vararg{Pair{Identifier,Agent}} # 可变长
+            ) where Identifier
+            new{Identifier}( # 泛型参数需要注册
+                Dict{Identifier, Agent}(id_agent_pairs), # Dict支持直接用可迭代对象
+            )
+        end
+
+        """
+        导入「标识符 => 智能体」可迭代对象的初始化
+        """
+        function Environment{Identifier}(
+            id_agent_pairs::Union{AbstractArray,Tuple,Dict} # 可迭代对象
+            ) where Identifier
+            new{Identifier}( # 泛型参数需要注册
+                Dict{Identifier, Agent}(id_agent_pairs), # Dict支持直接用可迭代对象
+            )
+        end
+
+        """
+        直接导入外部字典的初始化
+        """
+        function Environment{Identifier}(
+            id_agent_dict::Dict{Identifier,Agent}
+            ) where Identifier
+            new{Identifier}(id_agent_dict) # 直接使用
+        end
+
+        "无泛型类⇒默认Symbol"
+        function Environment(args...; args_kw...)
+            Environment{Symbol}(args...; args_kw...) # 【20230718 23:34:41】📝Julia可变参数好就好在「定义与调用格式一致」
+        end
     end
+
+    # 功能适配 #
+    "重载等号以便「判断值相等」"
+    (e1::Environment) == (e2::Environment) = e1.agents == e2.agents
+
+    # 对接辅助 #
+
+    "打包「环境链接」：参照「wrap_link_in」，这里默认使用「env_link::Environment」作为「嵌入对象」"
+    macro wrap_env_link(struct_def::Expr)
+        :(@wrap_link_in env_link::Environment $struct_def) |> esc
+    end
+
+    "第二部分：追加读写链接方法"
+    macro generate_gset_env_link(struct_name::Symbol)
+        :(@generate_gset_link $struct_name env_link::Environment) |> esc
+    end
+
+    "声明但不初始化"
+    function get_env_link end
+
+    "声明但不初始化"
+    function set_env_link end
 
     # Agent注册 #
 
@@ -324,7 +390,8 @@ begin "Environment"
         end
     end
 
-    """遍历获取所有Agent的所有操作
+    """
+    遍历获取所有Agent的所有操作（不论存量是否为0）
     - 返回一个迭代器（不一定是Generator）
     - 遍历其中所有Agent
         - 再遍历每个Agent的operations

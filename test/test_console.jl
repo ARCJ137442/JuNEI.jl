@@ -3,6 +3,8 @@ push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 
 using JuNEI
 
+"================Test for Console================" |> println
+
 while true
     # type::NARSType = NARSType"ONA"
     global type::NARSType = inputType("NARS Type(OpenNARS/ONA/Python/Junars): ")

@@ -6,7 +6,14 @@
 - 知识：根据「离障碍的远近」与「障碍的高度」做跳跃
     - CheatPoint（本能系统の解）：在障碍「足够近」时自动跳跃
 
+现况：
+- 
 """
+
+push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
+push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
+
+using JuNEI
 
 begin "实用工具"
     
@@ -27,7 +34,7 @@ begin "游戏逻辑"
     - 障碍没到卷轴宽度时，相当于「冷却时间」
 
     """
-    mutable struct LeapGame
+    @wrap_env_link mutable struct LeapGame
 
         const scroll_range::Integer # 卷轴宽度（一半，显示的完整宽度为2scroll_range+1）
         const obstacle_RNG::NTuple{3} # 不变的生成器（三个可迭代对象，生成「(x,y,height)」）
@@ -63,6 +70,7 @@ begin "游戏逻辑"
             )
         end
     end
+    @generate_gset_env_link LeapGame
 
     "启动游戏"
     function launch!(game::LeapGame)
@@ -201,10 +209,24 @@ begin "接口"
 
     """
     请求输入
+    - 对接：遍历环境的所有操作
     """
     function request_input(game::LeapGame)
-        readline(stdin) # 中断命令行，等待回车
-        "1" # 只要回车，就算做「有输入」
+        # readline(stdin) # 中断命令行，等待回车
+        # "1" # 只要回车，就算做「有输入」
+
+        # 遍历所有操作
+        for (i, agent, op, n) in operations_itor(game.env_link)
+            if n > 0 && op == Operation"up"
+                return nameof(op) # 有响应
+                @info "agent operation..."
+            end
+        end
+        # 无操作：babble⇒延时⇒返回空值
+        agent_babble(game.env_link)
+        @info "agent babble..."
+        sleep(1)
+        return ""
     end
 
     """
@@ -212,9 +234,68 @@ begin "接口"
     【20230716 10:07:58】实时游戏中是否需要？
     """
     function response(game::LeapGame)
-        
+        @show 1
+        @soft_isnothing_property(game.env_link) && isAlive(game.env_link) && update!(game.env_link) # 环境更新
     end
 
+end
+
+begin "NARS环境实现"
+
+    "所有合法操作之名"
+    const OPERATION_NAMES::Vector{String} = [
+        "up"
+    ]
+
+    "（对接）"
+    function agent_sensor_hook!(collector::Vector{Perception}, agent::Agent, game::LeapGame)
+        @show collector agent game
+        # push!(collector, Perception"test"other)
+        # 暂时不使用感知：游戏只有对「操作之后」的反馈，而没有「实时状态」的更新
+    end
+
+    "（对接）初始化Environment：注册Agent（只初始化一次）"
+    function init_environment!(
+        game::LeapGame, 
+        type_name::Union{String,Nothing}=nothing, 
+        executable_path::Union{String,Nothing}=nothing, 
+    )
+        # 构造对象，注册Agent
+        game.env_link = Environment{Symbol}(
+            :nars => Agent(
+                NARSType(isnothing(type_name) ? inputType() : type_name),
+                isnothing(executable_path) ? input() : executable_path;
+                # babble_hook = agent_babble_hook # TODO
+            )
+        )
+        # 批量置入目标
+        for goalname::String in [
+            "good" # 所谓「达到目的」
+            "valid" # 有效性
+            ]
+            agent_register!(
+                game.env_link,
+                Goal(goalname),
+                false # is_negative？？！
+            )
+        end
+        # 批量注册感知器
+        agent_register!(
+            game.env_link,
+            SensorBasic( # 似乎可以变化？
+                agent_sensor_hook!
+            )
+        )
+        # 批量注册操作
+        for operation_name::AbstractString in OPERATION_NAMES
+            agent_register!(
+                game.env_link,
+                Operation(operation_name)
+            )
+        end
+        # 启动
+        activate_all_agents!(game.env_link)
+    end
 end
 
 # 游戏入口
@@ -225,6 +306,8 @@ game::LeapGame = LeapGame(
     1, # 重力
     4, # 跳跃高度
 )
+
+init_environment!(game, ARGS...) # 支持参数导入
 
 init!(game)
 
