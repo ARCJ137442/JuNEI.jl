@@ -49,7 +49,7 @@ Dict(
         end,
         
         # 感知
-        (np::Perception) -> "<{$(np.subject)} --> [$(np.adjective)]>. :|:",
+        (np::Perception) -> "<{$(np.subject)} --> [$(np.property)]>. :|:",
         
         # 注册操作
         (op::Operation) -> "<(*,$TERM_SELF_STR) --> ^$(op.name))>. :|:",
@@ -67,8 +67,11 @@ Dict(
         # 奖
         (ng::Goal) -> "<$TERM_SELF_STR --> [$(ng.name)]>. :|:",
         
-        # 惩
+        # 惩 【20230721 23:14:11】TODO：有待整合并通用化——与NAL结合/合并入「通用语句输入」？或者就干脆保留特殊
         (ng::Goal) -> "<$TERM_SELF_STR --> [$(ng.name)]>. :|: %0%", # 通用的语法是「"(--,<$TERM_SELF_STR --> [%s]>). :|:"」
+
+        # 循环周期
+        (n::Integer) -> "$n",
 
     ),
 
@@ -102,7 +105,7 @@ Dict(
         end,
         
         # 感知
-        (np::Perception) -> "<{$(np.subject)} --> [$(np.adjective)]>. :|:",
+        (np::Perception) -> "<{$(np.subject)} --> [$(np.property)]>. :|:",
         
         # 注册操作
         (op::Operation) -> "(*,$TERM_SELF_STR, ^$(op.name)). :|:",
@@ -122,6 +125,9 @@ Dict(
         
         # 惩
         (ng::Goal) -> "<$TERM_SELF_STR --> [$(ng.name)]>. :|: {0}",
+
+        # 循环周期
+        (n::Integer) -> "$n",
 
     ),
 
@@ -151,7 +157,7 @@ Dict(
         end,
         
         # 感知
-        (np::Perception) -> "({$(np.subject)} --> [$(np.adjective)]). :|:",
+        (np::Perception) -> "({$(np.subject)} --> [$(np.property)]). :|:",
         
         # 注册操作
         (op::Operation) -> "((*,$TERM_SELF_STR) --> $(op.name)). :|:",
@@ -163,7 +169,7 @@ Dict(
         (ng::Goal, is_negative::Bool) -> (
             is_negative ?
               "($TERM_SELF_STR --> (-, [$(ng.name)]))! :|:" # 一个「负向目标」，指导「实现其反面」
-            : "($TERM_SELF_STR --> [$(ng.name)]>! :|:"
+            : "($TERM_SELF_STR --> [$(ng.name)])! :|:"
         ),
         
         # 奖
@@ -172,6 +178,8 @@ Dict(
         # 惩
         (ng::Goal) -> "($TERM_SELF_STR --> [$(ng.name)]). :|: %0.00;0.90%",
 
+        # 循环周期
+        (n::Integer) -> "", # NARS-Python不启用
     ),
 
     TYPE_JUNARS => CINRegister(
@@ -192,7 +200,7 @@ Dict(
         end,
         
         # 感知
-        (np::Perception) -> "<{$(np.subject)} --> [$(np.adjective)]>.", # 暂时移除时态「 :|:」（OpenJunars暂不支持时序推理）
+        (np::Perception) -> "<{$(np.subject)} --> [$(np.property)]>.", # 暂时移除时态「 :|:」（OpenJunars暂不支持时序推理）
         
         # 注册操作
         (op::Operation) -> "<(*,$TERM_SELF_STR) --> ^$(op.name))>.",
@@ -212,6 +220,9 @@ Dict(
         
         # 惩
         (ng::Goal) -> "<$TERM_SELF_STR --> [$(ng.name)]>. %0%", # 通用的语法是「"(--,<$TERM_SELF_STR --> [%s]>). :|:"」
+
+        # 循环周期
+        (n::Integer) -> ":c $n", # 特殊命令✅
 
     ),
 )

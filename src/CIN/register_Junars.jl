@@ -99,7 +99,7 @@ begin "CINOpenJunars"
     end
 
     "实现：复制一份副本（所有变量），但不启动"
-    copy(cj::CINJunars)::CINJunars = CINJunars(
+    Base.copy(cj::CINJunars)::CINJunars = CINJunars(
         cj.type,
         cj.path_Junars,
         cj.module_names |> copy, # 可变数组需要复制
@@ -109,7 +109,7 @@ begin "CINOpenJunars"
         cj.cached_inputs |> copy, # 可变数组需要复制
     )
     "similar类似copy"
-    similar(cj::CINJunars)::CINJunars = copy(cj)
+    Base.similar(cj::CINJunars)::CINJunars = copy(cj)
 
     "（实现）实际上是构建一个新字典"
     modules(cj::CINJunars) = Dict(
@@ -219,7 +219,7 @@ begin "CINOpenJunars"
     - 【20230718 13:19:57】📌不能使用union{String,Integer}
         - 会产生歧义「MethodError: put!(::CINJunars, ::String) is ambiguous.」
     """
-    function put!(cj::CINJunars, input::String)
+    function Base.put!(cj::CINJunars, input::String)
         # 过滤空值
         isempty(input) && return
         # 若可以被转换为整数：执行cycle
@@ -307,10 +307,12 @@ begin "CINOpenJunars"
 
             #= 赶在缓冲区被清除前，读取其中的「新内容」
             📌上面的`Admins.clear!`不清除任务缓冲区taskbuffer
+            - 📌【20230721 21:50:51】注意：以下涉及Base模块的，需要增加`Base.`前缀以保险不出错
+                - 出错代码：「no method matching copy(::DataStructures.MutableLinkedList{Junars.Entity.NaTask})」
             =#
-            tb = @invokelatest copy(nar.taskbuffer) # 复制一份，以免造成影响
-            while !(@invokelatest isempty(tb)) # 注意：不是nac.taskbuffer
-                task = @invokelatest pop!(tb) # 摘自`Control.absorb!`
+            tb = @invokelatest Base.copy(nar.taskbuffer) # 复制一份，以免造成影响
+            while !(@invokelatest Base.isempty(tb)) # 注意：不是nac.taskbuffer
+                task = @invokelatest Base.pop!(tb) # 摘自`Control.absorb!`
                 # （WIP）打印信息：句子名称(路径：sentence.jl/Gene.name)
                 sentense::String = @invokelatest Gene.name(task.sentence)
                 # @info "已捕捉到任务：" * sentense # 【20230718 14:52:26】不知为何@debug不显示

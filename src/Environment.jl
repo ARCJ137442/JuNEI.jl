@@ -14,9 +14,6 @@
 module NARSEnvironment
 
 # 导入
-using Reexport
-@reexport import Base: (==)
-
 using ..NARSElements
 using ..NARSAgent
 
@@ -28,7 +25,7 @@ export hasAgent, isAlive, getAgent
 export register_agent!, create_agent!, activate_all_agents!
 export discord_agent, discord_all_agents!
 export agent_babble!, agent_praise!, agent_punish!, agent_put!, agent_register!, agent_update!
-export operations_itor
+export operations_itor, agent_operation_snapshot!
 export @wrap_env_link, @generate_gset_env_link, get_env_link, set_env_link
 
 
@@ -39,63 +36,81 @@ begin "Environment"
     """
     struct Environment{Identifier}
 
-        """存储已注册的「游戏实体」（NARS智能体）
+        """
+        存储已注册的「游戏实体」（NARS智能体）
         - 使用Symbol作为「智能体」的索引
             - 例：使用Symbol「:red」「:black」标记中国象棋的「红方」「黑方」
         """
         agents::Dict{Identifier, Agent}
-
-        # 📝带泛型类的构造函数：函数名+new 均带泛型指示
-        function Environment{Identifier}() where Identifier
-            new{Identifier}( # 泛型参数需要注册
-                Dict{Identifier, Agent}(), # 空字典
-            )
-        end
-
-        """
-        使用「标识符 => 智能体」对列的初始化
-        - 类字典初始化
-
-        📝Julia限制可变长参数类型无需对应「id_agent_pairs」的实际类型
-        - 用「`Vararg{Type}`」替代「`arg...` 且每个arg元素都是Type」
-        """
-        function Environment{Identifier}(
-            id_agent_pairs::Vararg{Pair{Identifier,Agent}} # 可变长
-            ) where Identifier
-            new{Identifier}( # 泛型参数需要注册
-                Dict{Identifier, Agent}(id_agent_pairs), # Dict支持直接用可迭代对象
-            )
-        end
-
-        """
-        导入「标识符 => 智能体」可迭代对象的初始化
-        """
-        function Environment{Identifier}(
-            id_agent_pairs::Union{AbstractArray,Tuple,Dict} # 可迭代对象
-            ) where Identifier
-            new{Identifier}( # 泛型参数需要注册
-                Dict{Identifier, Agent}(id_agent_pairs), # Dict支持直接用可迭代对象
-            )
-        end
-
-        """
-        直接导入外部字典的初始化
-        """
-        function Environment{Identifier}(
-            id_agent_dict::Dict{Identifier,Agent}
-            ) where Identifier
-            new{Identifier}(id_agent_dict) # 直接使用
-        end
-
-        "无泛型类⇒默认Symbol"
-        function Environment(args...; args_kw...)
-            Environment{Symbol}(args...; args_kw...) # 【20230718 23:34:41】📝Julia可变参数好就好在「定义与调用格式一致」
-        end
+        
+        # 默认的内部构造方法，就是「直接导入外部字典的初始化」
     end
 
+    """
+    提供默认值的空参数构造方法：放外面
+    - 📝带泛型类的构造方法：函数名+new 均带泛型指示
+    """
+    function Environment{Identifier}() where Identifier
+        Environment{Identifier}( # 泛型参数需要注册
+            Dict{Identifier, Agent}(), # 空字典
+        )
+    end
+
+    """
+    使用「标识符 => 智能体」对列的初始化
+    - 类字典初始化
+
+    📝Julia限制可变长参数类型无需对应「id_agent_pairs」的实际类型
+    - 用「`Vararg{Type}`」替代「`arg...` 且每个arg元素都是Type」
+    """
+    function Environment{Identifier}(
+        id_agent_pairs::Vararg{Pair{Identifier,Agent}} # 可变长
+        ) where Identifier
+        Environment{Identifier}( # 泛型参数需要注册
+            Dict{Identifier, Agent}(id_agent_pairs), # Dict支持直接用可迭代对象
+        )
+    end
+
+    """
+    导入「标识符 => 智能体」可迭代对象的初始化
+    - 📌注意：不能再用Dict，否则递归报错
+    """
+    function Environment{Identifier}(
+        id_agent_pairs::Union{AbstractArray,Tuple,Iterators.Pairs} # 可迭代对象
+        ) where Identifier
+        Environment{Identifier}( # 泛型参数需要注册
+            Dict{Identifier, Agent}(id_agent_pairs), # Dict支持直接用可迭代对象
+        )
+    end
+
+    "无泛型类⇒默认Symbol（不是String）" # 【20230718 23:34:41】📝Julia可变参数好就好在「定义与调用格式一致」
+    Environment(args...; args_kw...) = Environment{Symbol}(args...; args_kw...)
+
+
     # 功能适配 #
-    "重载等号以便「判断值相等」"
-    (e1::Environment) == (e2::Environment) = e1.agents == e2.agents
+
+    """
+    重载等号以便「判断值相等」
+    
+    📝向Base的函数中添加方法：使用「Base.函数名」+直接用「函数名(参数集)」
+    - 明确使用「Base.函数名」定义，就不需要import！
+    - 因为默认用的就是Base中的函数，此时模块内所有调用函数之处都不受影响
+    - 📌重载`Base.==`（等一般等号）时，符号规范是「Base.:(==)」而非
+        - `Base.==`
+        - `Base.:==`
+        - `Base.(==)`
+    """
+    Base.:(==)(e1::Environment, e2::Environment) = e1.agents == e2.agents
+
+    "重载索引：环境[标识符] = Agent"
+    function Base.getindex(env::Environment{Identifier}, i::Identifier) where Identifier
+        Base.getindex(env.agents, i)
+    end
+
+    "重载索引：环境[标识符] = Agent（？是否要暴露出去）"
+    function Base.setindex!(env::Environment{Identifier}, val::Agent, i::Identifier) where Identifier
+        Base.setindex!(env.agents, i)
+    end
 
     # 对接辅助 #
 
@@ -115,18 +130,19 @@ begin "Environment"
     "声明但不初始化"
     function set_env_link end
 
+
     # Agent注册 #
 
     """获取「是否有Agent」
     """ # 📝Julia中处理「使用泛型的类型」需要声明「泛型类{模板类型}」+「where 模板类型」
-    function hasAgent(env::Environment{Identifier}, identifier::Identifier)::Bool where Identifier
-        return identifier in keys(env.agents)
+    function hasAgent(env::Environment{Identifier}, i::Identifier)::Bool where Identifier
+        return haskey(env.agents, i)
     end
 
     """是否存活⇔是否有任意Agent存活
     """
     function isAlive(env::Environment)
-        return any(env.agents |> values .|> isAlive)
+        return env.agents |> values .|> isAlive |> any
     end
 
     """根据符号名获取Agent（未知是否有）
@@ -179,6 +195,7 @@ begin "Environment"
             isAlive(agent) && discord_agent(env, i, agent)
         end
     end
+
 
     # 传输指令：对接Agent的各类方法 #
 
@@ -324,6 +341,7 @@ begin "Environment"
         end
     end
 
+
     # Agent目标评价 #
 
     begin "praise"
@@ -390,21 +408,44 @@ begin "Environment"
         end
     end
 
-    """
-    遍历获取所有Agent的所有操作（不论存量是否为0）
-    - 返回一个迭代器（不一定是Generator）
-    - 遍历其中所有Agent
-        - 再遍历每个Agent的operations
-        - 返回(i, agent, operation, num)
-    """
-    function operations_itor(
-        env::Environment{Identifier}
-    ) where Identifier
-        return ( # 【20230714 15:10:40】现在不需要IterTools
-            (i, agent, operation, num) # 📝嵌套for循环的生成器，使用顺序就像直接用for一样（而非倒序）
-            for (i::Identifier, agent::Agent) in env.agents # 先遍历每个Agent
-            for (operation::Operation,num) in agent.operations # 再在Agent中遍历操作Operations
-        )
+    begin "对接应用"
+        
+        """
+        遍历获取所有Agent的所有操作（不论存量是否为0）
+        - 返回一个迭代器（不一定是Generator）
+        - 遍历其中所有Agent
+            - 再遍历每个Agent的operations
+            - 返回(i, agent, operation, num)
+        """
+        function operations_itor(env::Environment{Identifier}) where Identifier
+            return ( # 【20230714 15:10:40】现在不需要IterTools
+                (i, agent, operation, num) # 📝嵌套for循环的生成器，使用顺序就像直接用for一样（而非倒序）
+                for (i::Identifier, agent::Agent) in env.agents # 先遍历每个Agent
+                for (operation::Operation,num) in agent.operations # 再在Agent中遍历操作Operations
+            )
+        end
+        
+        """
+        似Agent操作快照：遍历获取到第一个操作，返回&清除已存储的操作
+        - 过滤集 filterSet：只过滤某个范围的操作
+            - 默认: nothing(无范围)，即对所有Agent清除所有操作
+        """
+        function agent_operation_snapshot!(env::Environment{Identifier}, filterSet=nothing)::Dict{Identifier,Operation} where Identifier
+            # 直接使用字典推导式
+            Dict(
+                i => operation_snapshot!(agent, filterSet)
+                for (i::Identifier, agent::Agent) in env.agents
+            )
+        end
+        
+        "可选的「字典分派形式」（覆盖原先定义）：把「对应的过滤集」分派到对应的Agent"
+        function agent_operation_snapshot!(env::Environment{Identifier}, filterSet::Dict)::Dict{Identifier,Operation} where Identifier
+            # 若「过滤集」也为字典：自动分派
+            Dict(
+                i => operation_snapshot!(agent, get(filterSet, i, nothing)) # 若无分派到对应过滤集，则默认nothing
+                for (i::Identifier, agent::Agent) in env.agents
+            )
+        end
     end
 end
 

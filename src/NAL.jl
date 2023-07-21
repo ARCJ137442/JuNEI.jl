@@ -15,9 +15,6 @@ NAL元素(WIP)
 """
 module NAL
 
-using Reexport
-@reexport import Base: nameof, string, repr, show
-
 using ..Utils # 使用上级模块（JuNEI）的Utils
 
 # ！统一在文件开头导出，而非在各个begin-end中export
@@ -83,10 +80,10 @@ begin "原子词项"
             AtomProperty => "[]",
         )
         
-        begin "抽象类构造函数重用：自动词项转换"
+        begin "抽象类构造方法重用：自动词项转换"
 
             """
-            （语法糖）复用抽象类构造函数（自动转换类型）
+            （语法糖）复用抽象类构造方法（自动转换类型）
             - 映射关系：String -> Term
             """
             function AbstractTerm(raw::String)::AbstractTerm
@@ -96,7 +93,7 @@ begin "原子词项"
             
             """
             纯字符串⇒原子词项（自动转换类型）
-            - 📌抽象类构造函数重用：相当于「自动转换词项」
+            - 📌抽象类构造方法重用：相当于「自动转换词项」
             - 例：AbstractTerm("{SELF}") = AtomInstance("SELF")
             - 目前还只支持「原子词项」
             """
@@ -116,11 +113,11 @@ begin "原子词项"
         begin "字符串/显示 重载"
 
             "获取词项名"
-            nameof(::AbstractTerm)::String = @abstractMethod
-            nameof(aterm::AbstractAtom)::String = aterm.name
+            Base.nameof(::AbstractTerm)::String = @abstractMethod
+            Base.nameof(aterm::AbstractAtom)::String = aterm.name
             
             "获取词项字符串&插值入字符串"
-            function string(aterm::AbstractAtom)::String
+            function Base.string(aterm::AbstractAtom)::String
                 surrounding::String = TARM_TYPE_SURROUNDING_DICT[aterm.type]
                 if !isempty(surrounding)
                     return surrounding[1] * nameof(aterm) * surrounding[end] # 使用字符串拼接
@@ -129,12 +126,12 @@ begin "原子词项"
             end
 
             "快捷方式"
-            string(ab::AtomBasic) = nameof(ab)
-            string(ai::AtomInstance) = "{$(nameof(ai))}"
-            string(ap::AtomProperty) = "[$(nameof(ap))]"
+            Base.string(ab::AtomBasic) = nameof(ab)
+            Base.string(ai::AtomInstance) = "{$(nameof(ai))}"
+            Base.string(ap::AtomProperty) = "[$(nameof(ap))]"
             
             "格式化对象输出"
-            repr(aterm::AbstractTerm)::String = "<NARS Term $(string(aterm))>"
+            Base.repr(aterm::AbstractTerm)::String = "<NARS Term $(string(aterm))>"
             
             # "控制在show中的显示形式"
             @redefine_show_to_to_repr aterm::AbstractTerm

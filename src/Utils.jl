@@ -4,19 +4,54 @@ using Reexport # 使用reexport自动重新导出
 
 begin "宏辅助"
 
-    @reexport import Base: (+), (*)
     export @reverse_dict_content, @soft_isnothing_property, @exceptedError, @recursive
     
-    "基本代码拼接"
-    (e1::Expr) + (e2::Expr) = quote
-        $e1
-        $e2
+    """
+    基本代码拼接
+    - 📌Julia中使用「Base.名字」、带`function`关键字的运算符重载，形式为`function Base.:运算符名(参数...)`
+    - 【20230721 15:59:48】优化：有相同头的可以自动合并args
+
+    ## 📝Julia中Expr的特殊head by ChatGPT
+    
+    在 Julia 中，`Expr` 是表示表达式的数据类型，它的 `head` 字段可以包含不同的特殊符号。特殊符号用于表示不同类型的表达式，以下是一些常见的特殊符号：
+    
+    1. `:call`：表示函数调用。
+        - 例如，`f(x)` 可以表示为 `Expr(:call, :f, :x)`。
+    2. `:ref`：表示变量引用。
+        - 例如，`x` 可以表示为 `Expr(:ref, :x)`。
+    3. `:block`：表示代码块。
+        - 例如，`begin x = 1; y = 2; end` 可以表示为 `Expr(:block, :(x = 1), :(y = 2))`。
+    4. `:if`：表示条件语句。
+        - 例如，`if condition A else B end` 可以表示为 `Expr(:if, :condition, :A, :B)`。
+    5. `:while`：表示循环语句。
+        - 例如，`while condition body end` 可以表示为 `Expr(:while, :condition, :body)`。
+    6. `:for`：表示迭代语句。
+        - 例如，`for i in collection body end` 可以表示为 `Expr(:for, :(i in collection), :body)`。
+    
+    这只是一些常见的特殊符号示例，实际上，Julia 中的 `Expr` 类型的 `head` 可以是任何合法的 Julia 表达式。
+    
+    通过了解不同特殊符号在 `Expr` 中的用法，你可以更好地理解 Julia 中的表达式和语法结构。
+    """
+    function Base.:+(e1::Expr, e2::Expr)
+        # 代码块特殊合并args
+        if e1.head == e2.head == :block
+            return Expr(
+                e1.head, # 头：采用相等二者的其中一个即可
+                e1.args...,
+                e2.args...
+            ) # 📌不能使用esc，会报错「syntax: invalid syntax (escape (block (line 22 」
+        end
+        # 默认就block quote起来（记得esc）
+        return quote
+            $e1
+            $e2
+        end # 不能用esc，原因同上
     end
     
     "代码复制（TODO：多层begin-end嵌套问题）"
-    (ex::Expr) * (k::Integer) = sum([ex for _ in 1:k])
+    Base.:(*)(ex::Expr, k::Integer) = sum([ex for _ in 1:k])
     
-    (k::Integer) * (ex::Expr) = ex * k
+    Base.:(*)(k::Integer, ex::Expr) = ex * k
     
     "反转字典"
     macro reverse_dict_content(name::Symbol)
@@ -93,10 +128,6 @@ end
 
 begin "统计学辅助：动态更新算法"
     
-    # 【20230717 15:02:55】不打算「导入统计学库并添加方法」：避免引入额外依赖
-    # @reexport import Statistics: var, std
-    @reexport import Base: getindex, setindex!
-
     export CMS
     export update!, var, std, z_score
 
@@ -170,10 +201,10 @@ begin "统计学辅助：动态更新算法"
     - 公式：n = c/(1-c)
     - ⚠此举尝试获得精确的值
     """
-    getindex(cms::CMS)::Unsigned = (cms.c / (1 - cms.c)) |> round |> Unsigned
+    Base.getindex(cms::CMS)::Unsigned = (cms.c / (1 - cms.c)) |> round |> Unsigned
 
     "无Keys：设置n值（从n逆向计算c）" # 【20230717 16:58:54】日后再考虑引进「k值」代表「每个新数据的权重」
-    function setindex!(cms::CMS, n::Number) # , keys...
+    function Base.setindex!(cms::CMS, n::Number) # , keys...
         cms.c = n / (n+1)
     end
 
@@ -377,19 +408,18 @@ begin "========一些OOP宏========"
         - 无法很好处理「原结构的文档字符串」（block对象无法@doc）⇒拆分实现
     """
     macro wrap_link_in(link_prop_def::Expr, struct_def::Expr)
-        # @show e
-        # dump(link_prop_def)
-        global ex=struct_def
-    
         # 表达式头「struct」
         struct_head::Symbol = struct_def.head
-        @assert struct_head==:struct "Expression isn't struct" # 断言
+        @assert struct_head==:struct "Expression '$struct_head' ≠ ':struct'!" # 断言
     
         # 表达式参数「是否可变::Bool，结构体名::Symbol，结构体代码(Expr block)」
-        _, _, code::Expr = struct_def.args
+        _, struct_name::Symbol, code::Expr = struct_def.args
         
-        # 增加属性定义到最后（确保是最后一个变量，而不影响原来的构造函数）
-        push!(code.args, link_prop_def)
+        push!(
+            code.args, 
+            link_prop_def, # 增加属性定义到最后（确保是最后一个变量，而不影响原来的构造函数）
+            :($struct_name(args...; kwargs...) = new(args...; kwargs...)) # 黑入一个内部构造方法，避免被原来的内部构造方法限制
+        )
     
         # 📌生成区块Expr(:block, 各代码块)也不是不行，但为了兼容「文档字符串」暴露struct，只能拆分
         struct_def |> esc # 📌不使用esc则「立即解析」const报错「expected assignment after "const" around [...]」
@@ -419,7 +449,7 @@ begin "========一些OOP宏========"
             # 不使用「『外加属性』作为第一个位置参数」的方法定义：若参数只有一个，会触发递归
     
             # 疑难杂症：引入这个「新关键字参数」要报错「UndefKeywordError: keyword argument `$env_prop_name` not assigned」
-            # "新外部构造函数：用关键字参数引入「外加属性」，但需要在其它参数都指定的情况下"
+            # "新外部构造方法：用关键字参数引入「外加属性」，但需要在其它参数都指定的情况下"
             # function $struct_name(args...; $env_prop_name::$env_type_name, args_kw...)
             #     @show $env_prop_name args args_kw
             #     $struct_name(args..., $env_prop_name; args_kw...)

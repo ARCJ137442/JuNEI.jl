@@ -6,10 +6,7 @@
 """
 module Templates
 
-using Reexport # 使用reexport自动重新导出
-@reexport import Base: isempty, nameof, string, convert, repr, show, convert
-
-import ..Utils: input
+import ..Utils: input, @redefine_show_to_to_repr
 
 # 导出
 
@@ -29,9 +26,9 @@ begin "NARSType"
     begin "转换用方法（名称，不需要字典）" # 实际上这相当于「第一行使用字符串」的表达式，但「无用到可以当注释」
         
         "NARS类型→名称"
-        nameof(nars_type::NARSType)::String = nars_type.name
-        string(nars_type::NARSType)::String = nameof(nars_type)
-        Base.convert(::Core.Type{String}, nars_type::NARSType) = nameof(nars_type)
+        Base.nameof(nars_type::NARSType)::String = nars_type.name
+        Base.string(nars_type::NARSType)::String = Base.nameof(nars_type)
+        Base.convert(::Core.Type{String}, nars_type::NARSType) = Base.nameof(nars_type)
 
         "名称→NARS类型"
         Base.convert(::Core.Type{NARSType}, type_name::String) = NARSType(type_name)
@@ -42,11 +39,11 @@ begin "NARSType"
         end
 
         "特殊打印格式：与宏相同"
-        repr(nars_type::NARSType) = "NARSType\"$(nameof(nars_type))\"" # 注意：不能直接插值，否则「StackOverflowError」
-        Base.show(io::IO, nars_type::NARSType) = print(io, repr(nars_type))
+        Base.repr(nars_type::NARSType) = "NARSType\"$(Base.nameof(nars_type))\"" # 注意：不能直接插值，否则「StackOverflowError」
+        @redefine_show_to_to_repr nars_type::NARSType
 
         "检测非空"
-        function isempty(nars_type::NARSType)::Bool
+        function Base.isempty(nars_type::NARSType)::Bool
             isempty(nars_type.name)
         end
 
@@ -89,7 +86,7 @@ begin "CINRegister"
 
         #= 程序特性 =#
 
-        "对应PyNEI中的「TYPE_CIN_DICT」，存储Type以达到索引「目标类构造函数」的目的"
+        "对应PyNEI中的「TYPE_CIN_DICT」，存储Type以达到索引「目标类构造方法」的目的"
         program_type::Type
 
         "对应PyNEI中被各个类实现的「launch_program」函数"
@@ -117,6 +114,9 @@ begin "CINRegister"
 
         "指示「某目标未实现」（惩罚）"
         punish::Function # Goal -> String
+
+        "指示「循环n个周期」"
+        cycle::Function # Integer -> String
 
     end
 

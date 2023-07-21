@@ -16,13 +16,13 @@ module NARSElements
 using ..Utils # 一个「.」表示当前模块下，两个「.」表示上一级模块下
 using ..NAL
 
-using Reexport # 使用reexport自动重新导出
-@reexport import Base: nameof, isempty, getindex, string, repr, show, 
-                       (≠), (+) # 感知器
-#= 
-导入Base，并向Base函数中添加方法
-防止调用报错「no method matching isempty(::Tuple{String})
-You may have intended to import Base.isempty」
+#= 📝向Base已有的函数中添加方法的渠道
+1. 导入Base，并向Base函数中添加方法
+2. 在所有「方法声明」处注明`Base.方法名(参数集)`
+    - 此方法不用导入Base模块
+
+作用之一：防止调用报错「no method matching isempty(::Tuple{String})
+                     You may have intended to import Base.isempty」
 - 或「重载内置函数失败」（没有export）
 =#
 
@@ -82,33 +82,31 @@ begin "感知"
         "主语"
         subject::String
 
-        "形容词（状态）"
-        adjective::String
+        "形容词（属性，对应NAL的`[property]`）"
+        property::String
 
-        "构造函数：主语&形容词"
-        Perception(subject::String, adjective::String) = new(subject, adjective)
-
-        "省略写法：默认使用「自我」做主语（单参数，不能用默认值）"
-        Perception(adjective::String) = new(SUBJECT_SELF_STR, adjective)
     end
 
+    "外部构造方法 简略写法：默认使用「自我」做主语（单参数，不能用默认值）"
+    Perception(property::String) = Perception(SUBJECT_SELF_STR, property)
+
     "插值入字符串"
-    Base.string(np::Perception)::String = "<{$(np.subject)} -> [$(np.adjective)]>"
+    Base.string(np::Perception)::String = "<{$(np.subject)} -> [$(np.property)]>"
 
     "show表达式"
-    Base.repr(np::Perception)::String = "<NARS Perception: {$(np.subject)} -> [$(np.adjective)]>"
+    Base.repr(np::Perception)::String = "<NARS Perception: {$(np.subject)} -> [$(np.property)]>"
 
     "控制在show中的显示方式"
     @redefine_show_to_to_repr np::Perception
 
     "使用宏快速构造NARS感知"
-    macro Perception_str(adjective::String, subject::String)
-        :(Perception($subject, $adjective))
+    macro Perception_str(property::String, subject::String)
+        :(Perception($subject, $property))
     end
 
     "无「主语」参数：自动缺省（构造「自身感知」）"
-    macro Perception_str(adjective::String)
-        :(Perception($adjective)) # 注意：不能用上面的宏来简化，右边的flag用$插值会出问题
+    macro Perception_str(property::String)
+        :(Perception($property)) # 注意：不能用上面的宏来简化，右边的flag用$插值会出问题
     end
 
     # 感知器 #
@@ -136,22 +134,34 @@ begin "操作"
         "操作参数" # 使用「Varar{类型}」表示「任意长度的指定类型」（包括空元组Tuple{}）
         parameters::Tuple{Vararg{String}}
 
-        """默认构造方法：接受一个名称与一个元组
-        - *优先匹配*（避免下面的构造方法递归）
-        - 避免：
-            - 传入SubString报错：String方法
-            - 空字串参数：filter方法
         """
-        Operation(name::AbstractString, parameters::Tuple{Vararg{String}}) = new(String(name), filter(!isempty, parameters))
-        # filter过滤掉「空字符串」，使空字符串无效化
-
-        "通用构造方法：名称+任意数量元组"
-        Operation(name::AbstractString, parameters...) = Operation(name, parameters)
+        默认构造方法：接受一个名称与一个元组
+        - *优先匹配*（避免下面的构造方法递归）
+        - 为何是内部构造方法？避免：
+            - 传入SubString报错：String方法
+            - 空字串参数：filter方法（预处理）
+        """
+        Operation(name::Union{AbstractString,Symbol}, parameters::Tuple{Vararg{String}}) = new(
+            String(name), 
+            filter(!isempty, parameters) # filter过滤掉「空字符串」，使空字符串无效化
+        )
     end
 
-    """空字串操作⇔空操作
-    注意：不是「有一个空字符串的操作」
+    "通用（外部）构造方法：名称+任意数量元组"
+    Operation(name::Union{AbstractString,Symbol}, parameters::Vararg{String}) = Operation(name, parameters)
+
+    "自动转换"
+
+    "快捷定义方式"
+    macro Operation_str(str::String)
+        :(Operation($str))
+    end
+
+    """
+    空字串操作⇔空操作
+    - 注意：不是「有一个空字符串的操作」
         - ❌<NARS Operation ^operation_EXE()>
+        - 【20230721 17:51:57】？实际上更多是直接用宏构造？
     """ # 也可使用「Operation""」构建
     EMPTY_Operation::Operation = Operation("")
 
@@ -177,11 +187,6 @@ begin "操作"
 
     "控制在show中的显示形式"
     @redefine_show_to_to_repr op::Operation
-
-    "快捷定义方式"
-    macro Operation_str(str::String)
-        :(Operation($str))
-    end
 
 end
 

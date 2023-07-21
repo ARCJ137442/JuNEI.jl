@@ -31,7 +31,7 @@ mutable struct Console
         ) = begin
         # 先构造自身
         console = new(
-            CINProgram( # 使用CIN.jl/CINProgram的构造函数，自动寻找合适类型
+            CINProgram( # 使用CIN.jl/CINProgram的构造方法，自动寻找合适类型
                 type, # 传入Program
                 executable_path, # CINCmdline
                 identity, # 占位符

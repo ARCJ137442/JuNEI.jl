@@ -1,6 +1,8 @@
 push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
 push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 
+using Test
+
 import JuNEI: isAlive, put!, terminate!, launch!
 
 "================Test for Multi-Process================" |> println
@@ -10,7 +12,7 @@ begin "附加功能"
     assemble_cmd(exe_path::String, args::Vector{String})::Cmd = `$exe_path $(join(args))`
     
     function showproperties(target)
-        @show target
+        @assert target
         for propertyname in propertynames(target)
             "$target.$propertyname = $(getproperty(target, propertyname))" |> println
         end
@@ -70,103 +72,113 @@ paths::Dict = Dict([
 
 path = paths[:c]
 
-prog::Program = Program(
-    path,
-    String["shell", ""]
-)
+begin "钩子定义"
 
-
-@show prog
-
-inputs = path == paths[:python] ? String[
-    "(A --> B).", 
-    "(B --> C).", 
-    "(C --> D).", 
-    "(A --> D)?"
-] : String[
-    "<A --> B>.", 
-    "<B --> C>.", 
-    "<C --> D>.", 
-    "<A --> D>?"
-]
-
-cmd = assemble_cmd(prog.exe_path, prog.args)
-
-# https://discourse.juliacn.com/t/topic/5039/2
-
-"输出处理钩子"
-function hook(line::String)
-    if "Answer" ⊂ line
-        "Answer! $line" |> println
-    else
-        !isempty(line) && println("Hook! $line")
-    end
-end
-
-"异步读取输出"
-function async_read_out(program::Program)
-    while program.process.exitcode != 0
-        program.process |> readline |> hook
-    end
-end
-
-"主运行钩子"
-function handleProcess(program::Program)
-
-    process::Base.Process = open(`cmd`, "r+")
-    # process::Base.Process = open(`cmd`, "r+"; encoding="UTF-8")
-    
-    program.process = process
-
-    @show isAlive(program)
-
-    showproperties(process)
-    showproperties(process.out)
-
-    # close(process)
-
-    "now reading..." |> println
-    
-    # 开启监听
-    @async async_read_out(program)
-
-    5 |> sleep
-
-    # 写
-    # !!!不能用write（这个Process继承了IO，但实际上没有任何行为），要用println
-    # println：看起来像是一个「输出操作」，但实际上可以作为输入端输入命令（cmd测试成功）
-    put!( # 输入初始指令
-        program,
-        exe_cmd(prog),
-        # "java -Xmx1024m -jar $jar_path" # opennars 测试成功✅
-    )
-
-    0.5 |> sleep
-
-    for inp ∈ inputs
-        put!(program, "$inp\n")
-        # @show inp 
+    "输出处理钩子"
+    function hook(line::String)
+        if "Answer" ⊂ line
+            "Answer! $line" |> println
+        else
+            !isempty(line) && println("Hook! $line")
+        end
     end
 
-    10 |> sleep
+    "异步读取输出"
+    function async_read_out(program::Program)
+        while program.process.exitcode != 0
+            program.process |> readline |> hook
+        end
+    end
 
-    @show isAlive(program)
+    "主运行钩子"
+    function handleProcess(program::Program)
 
-    terminate!(program)
+        process::Base.Process = open(`cmd`, "r+")
+        # process::Base.Process = open(`cmd`, "r+"; encoding="UTF-8")
+        
+        program.process = process
 
-    @show isAlive(program)
+        @assert isAlive(program)
 
-    process |> showproperties
+        showproperties(process)
+        showproperties(process.out)
 
-    return
+        # close(process)
+
+        "now reading..." |> println
+        
+        # 开启监听
+        @async async_read_out(program)
+
+        5 |> sleep
+
+        # 写
+        # !!!不能用write（这个Process继承了IO，但实际上没有任何行为），要用println
+        # println：看起来像是一个「输出操作」，但实际上可以作为输入端输入命令（cmd测试成功）
+        put!( # 输入初始指令
+            program,
+            exe_cmd(prog),
+            # "java -Xmx1024m -jar $jar_path" # opennars 测试成功✅
+        )
+
+        0.5 |> sleep
+
+        for inp ∈ inputs
+            put!(program, "$inp\n")
+            # @show inp 
+        end
+
+        10 |> sleep
+
+        @assert isAlive(program)
+
+        terminate!(program)
+
+        @assert !isAlive(program)
+
+        process |> showproperties
+
+        return
+    end
 end
 
 launch!(prog::Program) = @async handleProcess(prog)
 
-@show isAlive(prog)
+@testset "Multi-Process" begin
 
-launch!(prog)
+    prog::Program = Program(
+        path,
+        String["shell", ""]
+    )
+
+    @show prog
+
+    inputs = path == paths[:python] ? String[
+        "(A --> B).", 
+        "(B --> C).", 
+        "(C --> D).", 
+        "(A --> D)?"
+    ] : String[
+        "<A --> B>.", 
+        "<B --> C>.", 
+        "<C --> D>.", 
+        "<A --> D>?"
+    ]
+
+    cmd = assemble_cmd(prog.exe_path, prog.args)
+
+    # https://discourse.juliacn.com/t/topic/5039/2
+
+    @test !isAlive(prog)
+
+    launch!(prog)
+        
+    1 |> sleep
+
+    @test isAlive(prog)
     
-20 |> sleep
+    9 |> sleep
 
-"return!" |> println
+    "return!" |> println
+    
+end

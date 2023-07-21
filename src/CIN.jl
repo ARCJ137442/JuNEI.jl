@@ -18,11 +18,10 @@ using ..NAL
 using ..NARSElements
 
 # 导入注册表的「数据结构」
+using Reexport
+
 include("CIN/templates.jl")
 @reexport using .Templates # 重新导出，但也可「按需索取」只using CIN.Templates
-
-# 导入
-@reexport import Base: isempty, copy, similar, finalize, put!, isvalid
 
 # 导出
 
@@ -36,9 +35,6 @@ export cached_inputs, cache_input!, num_cached_input, cache_input!, clear_cached
 
 export @CINRegister_str # ?可以移动到templates里？
 
-
-# begin "因为Utils引用问题迁移过来的宏"
-# end
 
 begin "CINProgram" # 使用这个「代码块」将功能相近的代码封装到一起
     
@@ -54,16 +50,16 @@ begin "CINProgram" # 使用这个「代码块」将功能相近的代码封装�
         out_hook::Union{Function,Nothing}=nothing,
         )
         @debug "Construct: CINProgram with $out_hook, $type"
-        return new(out_hook, type) # 返回所涉及类的一个实例（通用构造函数名称）
+        return new(out_hook, type) # 返回所涉及类的一个实例（通用构造方法名称）
     end
 
     "复制一份副本（所有变量），但不启动"
-    copy(program::CINProgram)::CINProgram = copy(program)
+    Base.copy(program::CINProgram)::CINProgram = copy(program)
     "similar类似copy"
-    similar(program::CINProgram)::CINProgram = copy(program)
+    Base.similar(program::CINProgram)::CINProgram = copy(program)
 
     # 析构函数
-    function finalize(program::CINProgram)::Nothing
+    function Base.finalize(program::CINProgram)::Nothing
         terminate!(program)
     end
     
@@ -77,6 +73,11 @@ begin "CINProgram" # 使用这个「代码块」将功能相近的代码封装�
     
     "设置对外接口：函数钩子"
     function out_hook!(program::CINProgram, newHook::Union{Function,Nothing})::Union{Function,Nothing}
+        program.out_hook = newHook
+    end
+
+    "重载：函数第一位，以支持do语法"
+    function out_hook!(newHook::Function, program::CINProgram)::Function
         program.out_hook = newHook
     end
     
@@ -101,16 +102,16 @@ begin "CINProgram" # 使用这个「代码块」将功能相近的代码封装�
     getRegister(program::CINProgram)::CINRegister = convert(CINRegister, program) # 通过convert实现
     
     "（API）添加输入（NAL语句字符串）：对应PyNEI的「write_line」"
-    put!(program::CINProgram, input::String) = @abstractMethod
+    Base.put!(program::CINProgram, input::String) = @abstractMethod
 
     "针对「可变长参数」的多项输入" # 不强制inputs的类型
-    function put!(program::CINProgram, input1, input2, inputs...) # 不强制Nothing
+    function Base.put!(program::CINProgram, input1, input2, inputs...) # 不强制Nothing
         # 使用多个input参数，避免被派发到自身
         put!(program, (input1, input2, inputs...))
     end
 
     "针对「可变长参数」的多项输入" # 不强制inputs的类型
-    function put!(program::CINProgram, inputs::Union{Vector,Tuple}) # 不强制Nothing
+    function Base.put!(program::CINProgram, inputs::Union{Vector,Tuple}) # 不强制Nothing
         # 注意：Julia可变长参数存储在Tuple而非Vector中
         for input ∈ inputs
             put!(program, input)
@@ -150,7 +151,11 @@ begin "CINCmdline"
         "CIN进程"
         process::Base.Process
 
-        "宽松的构造函数（但new顺序定死，没法灵活）"
+        """
+        宽松的内部构造方法
+        - 定义为**内部构造方法**之因：让`process`未定义，以便不用`Union{Nothing, ...}`
+            - 因：但new顺序定死，没法灵活
+        """
         function CINCmdline(
             type::NARSType,
             executable_path::String, 
@@ -167,21 +172,21 @@ begin "CINCmdline"
     end
 
     "实现：复制一份副本（所有变量），但不启动"
-    copy(cmd::CINCmdline)::CINCmdline = CINCmdline(
+    Base.copy(cmd::CINCmdline)::CINCmdline = CINCmdline(
         cmd.type,
         cmd.executable_path,
         cmd.out_hook,
         copy(cached_inputs), # 可变数组需要复制
     )
     "similar类似copy"
-    similar(cmd::CINCmdline)::CINCmdline = copy(cmd)
+    Base.similar(cmd::CINCmdline)::CINCmdline = copy(cmd)
     
     # 📝Julia对引入「公共属性」并不看好
     
     "存活依据：主进程非空"
     isAlive(cmd::CINCmdline)::Bool = 
         !@soft_isnothing_property(cmd.process) && # 进程是否非空
-        !eof(cmd.process) && # 是否「文件结束」
+        # !eof(cmd.process) && # 是否「文件结束」（！会阻塞主进程）
         cmd.process.exitcode != 0 && # 退出码正常吗
         process_running(cmd.process) && # 是否在运行
         !process_exited(cmd.process) # 没退出吧
@@ -209,7 +214,7 @@ begin "CINCmdline"
 
                 process::Base.Process = open(`cmd`, "r+") # 打开后的进程不能直接赋值给结构体的变量？
                 cmd.process = process
-                sleep(1)
+                sleep(0.75)
                 launch_cmd_str::String = replace("$launch_cmd"[2:end-1], "'" => "\"") # Cmd→String
                 # 不替换「'」为「"」则引发「文件名或卷标语法不正确。」
                 put!(cmd, launch_cmd_str) # Cmd转String
@@ -221,6 +226,10 @@ begin "CINCmdline"
                 for startup_cmd ∈ startup_cmds[2]
                     put!(cmd, startup_cmd)
                 end
+
+                sleep(0.25)
+
+                !isAlive(cmd) && @warn "CIN命令行程序未启动：$cmd\n启动参数：$startup_cmds"
             catch e
                 @error e
             end
@@ -238,15 +247,15 @@ begin "CINCmdline"
     "从stdout读取输出"
     function async_read_out(cmd::CINCmdline)
         line::String = "" # Julia在声明值类型后必须初始化
-        try # 注意：Julia中使用@async执行时，无法直接显示与跟踪报错
-            while isAlive(cmd)
+        while isAlive(cmd)
+            try # 注意：Julia中使用@async执行时，无法直接显示与跟踪报错
                 line = readline(cmd.process)
                 !isempty(line) && use_hook(
                     cmd, line |> strip |> String # 确保SubString变成字符串
                 ) # 非空：使用钩子
+            catch e
+                @error e
             end
-        catch e
-            @error e
         end
         "loop end!" |> println
     end
@@ -277,7 +286,7 @@ begin "CINCmdline"
     end
 
     "重载：直接添加至命令"
-    function put!(cmd::CINCmdline, input::String)
+    function Base.put!(cmd::CINCmdline, input::String)
         # @async add_to_cmd!(cmd, input) # 试图用异步而非「缓存」解决「写入卡死」问题
         cache_input!(cmd, input) # 先加入缓存
         flush_cached_input!(cmd) # 再执行&清除
@@ -291,7 +300,11 @@ begin "CINCmdline"
     
     "实现方法：推理循环步进"
     function cycle!(cmd::CINCmdline, steps::Integer)
-        add_to_cmd!(cmd, "$steps") # 增加指定步骤（println自带换行符）
+        inp::String = getRegister(cmd).cycle(steps) # 套模板
+        !isempty(inp) && add_to_cmd!(
+            cmd,
+            inp,
+        ) # 增加指定步骤（println自带换行符）
     end
     
     "【独有】缓存的命令"
@@ -327,13 +340,13 @@ begin "CINJuliaModule"
     abstract type CINJuliaModule <: CINProgram end
 
     "实现：复制一份副本（所有变量），但不启动"
-    copy(jm::CINJuliaModule)::CINJuliaModule = CINJuliaModule(
+    Base.copy(jm::CINJuliaModule)::CINJuliaModule = CINJuliaModule(
         jm.type,
         jm.out_hook,
         jm.cached_inputs |> copy, # 可变数组需要复制
     )
     "similar类似copy"
-    similar(jm::CINJuliaModule)::CINJuliaModule = copy(jm)
+    Base.similar(jm::CINJuliaModule)::CINJuliaModule = copy(jm)
 
     "（API）获取所持有的模块::Dict{String, Module}"
     modules(::CINJuliaModule)::Dict{String,Module} = @abstractMethod
@@ -376,7 +389,7 @@ CIN_REGISTER_DICT::Dict = include("CIN/register.jl")
 begin "注册后的一些方法（依赖注册表）"
 
     "检验NARSType的有效性：是否已被注册"
-    isvalid(nars_type::NARSType)::Bool = nars_type ∈ keys(CIN_REGISTER_DICT) # 访问字典键值信息，用方法而不用属性（否则报错：#undef的「access to undefined reference」）
+    Base.isvalid(nars_type::NARSType)::Bool = nars_type ∈ keys(CIN_REGISTER_DICT) # 访问字典键值信息，用方法而不用属性（否则报错：#undef的「access to undefined reference」）
 
     "Type→Register（依赖字典）"
     function Base.convert(::Core.Type{CINRegister}, type::NARSType)::CINRegister

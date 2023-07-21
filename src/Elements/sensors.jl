@@ -36,7 +36,9 @@ begin "抽象感知器 & 基础感知器"
     （默认）在不检查enabled的情况下：直接执行「外调函数」，
     - 将「收集器」也传递到外调函数，以供参考
         - 后续可以让外调函数「根据已有感知做出对策」
-    - 把「外调函数」返回的Perception数据（若非空）添加到收集器
+        - 【20230721 17:18:19】现统一感知方式：只让「外调函数」对「收集器」进行增删操作
+            - ⚠不处理其返回值！
+            - 缘由：减少对接复杂度
     - 【20230716 23:12:54】💭不把Sensor作为参数传递的理由
         - 「从其它参数中返回感知对象」暂不需要「感知器本身」参与
         - 📌范式：若需要在「输出感知」层面进行功能增加（如「累积统计」功能），
@@ -46,12 +48,8 @@ begin "抽象感知器 & 基础感知器"
         sensor::AbstractSensor, 
         collector::Vector{Perception}, 
         targets...; targets_kw...
-        )
-        perceptions::Union{Vector{Perception}, Nothing} = (perceive_hook(sensor))(collector, targets...; targets_kw...)
-        !isnothing(perceptions) && push!(
-            collector,
-            perceptions...
-        )
+        ) # 返回值不重要
+        (perceive_hook(sensor))(collector, targets...; targets_kw...)
     end
 
     "直接调用：（在使能的条件下）执行感知（返回值不使用）"
@@ -286,9 +284,10 @@ begin "级联过滤器"
     end
 
     "trick：用加法实现级联"
-    (f1::AbstractPerceptionFilter) + (f2::AbstractPerceptionFilter) = FilterChain(f1,f2)
-    (fc::FilterChain) + (f2::AbstractPerceptionFilter) = FilterChain((fc.filters)...,f2)
-    (f1::AbstractPerceptionFilter) + (fc::FilterChain) = FilterChain(f1,(fc.filters)...)
+    Base.:(+)(fs::Vararg{AbstractPerceptionFilter}) = FilterChain(fs...) # 多个一般过滤器级联
+    Base.:(+)(fc::FilterChain, f2::AbstractPerceptionFilter) = FilterChain((fc.filters)...,f2) # 「级联过滤器」与「一般过滤器」相加
+    Base.:(+)(f1::AbstractPerceptionFilter, fc::FilterChain) = FilterChain(f1,(fc.filters)...) # 同上
+    Base.:(+)(fc1::FilterChain, fc2::FilterChain) = FilterChain((fc1.filters)...,(fc2.filters)) # 两个「级联过滤器」尝试平铺
 
 end
 
@@ -322,16 +321,18 @@ begin "过滤感知器"
     """
     兼容式构造方法：兼容先前「差分感知器」
     - 【20230717 15:41:08】唯一不足点：函数中没法使用泛型SensorDifference{BaselineType}
+    - 【20230721 20:42:10】新范式：「基线函数」跟随「外调函数」的设定现不可取
+        - 因：「外调函数只能通过修改collector进行操作」的新范式
     """
     function SensorDifference(
         BaselineType::DataType,
-        perceive_hook::Function, # 只有在「基线」更新时起效
-        baseline_hook::Function=perceive_hook, # 默认和「外调钩子」是一样的
+        perceive_hook!::Function, # 只有在「基线」更新时起效
+        baseline_hook::Function, # 
         distinct_function::Function=(≠), # 默认为「不等号」
         enabled::Bool=true,
         )
         SensorFiltered(
-            perceive_hook,
+            perceive_hook!,
             FilterDifference{BaselineType}(
                 baseline_hook,
                 distinct_function
@@ -345,7 +346,7 @@ begin "过滤感知器"
     """
     function SensorDifference(
         perceive_hook::Function, # 只有在「基线」更新时起效
-        baseline_hook::Function=perceive_hook, # 默认和「外调钩子」是一样的
+        baseline_hook::Function,
         distinct_function::Function=(≠), # 默认为「不等号」
         enabled::Bool=true,
         )

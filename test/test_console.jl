@@ -1,13 +1,15 @@
 push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
 push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 
+@show not_VSCode_running::Bool = "test" ⊆ pwd()
+
 using JuNEI
 
 "================Test for Console================" |> println
 
 while true
     # type::NARSType = NARSType"ONA"
-    global type::NARSType = inputType("NARS Type(OpenNARS/ONA/Python/Junars): ")
+    global type::NARSType = not_VSCode_running ? inputType("NARS Type(OpenNARS/ONA/Python/Junars): ") : NARSType"ONA"
     isempty(type) && (type = NARSType"ONA")
     # 检验合法性
     isvalid(type) && break
@@ -35,4 +37,4 @@ console = Console(
     "JuNEI.$(nameof(type))> ",
 )
 
-launch!(console)
+not_VSCode_running && launch!(console)

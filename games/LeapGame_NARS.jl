@@ -14,6 +14,7 @@ push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
 push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 
 using JuNEI
+NARSAgent.ENABLE_INFO = false # 关闭信息输出如「@info ...」
 
 begin "实用工具"
     
@@ -49,7 +50,7 @@ begin "游戏逻辑"
         last_input::String # 上一个输入信号
         last_render::String # 上一个渲染（用于减少重复渲染）
 
-        "构造函数：设置其中的常量"
+        "构造方法：设置其中的常量"
         function LeapGame(
             scroll_range::Integer,
             obstacle_RNG::NTuple{3},
@@ -74,22 +75,24 @@ begin "游戏逻辑"
 
     "启动游戏"
     function launch!(game::LeapGame)
-        # 异步请求输入
-        @async while true
-            game.last_input = request_input(game)
-        end
         # 开始游戏主程序
         while true
-            update!(game)
+            #= 疑难杂症：异步并行运行时，主进程阻塞的问题
+                📌在`request_input`仅读取操作而不造成主进程阻塞时，无需再开两个异步task
+                - 疑似`@async while true`会造成主进程阻塞
+            =#
+            update!(game) # 更新
             sleep(1/game.FPS)
         end
     end
 
     "游戏的单次循环"
     function update!(game::LeapGame)
+        update_input!(game) # 请求输入
         update_obstacles!(game) # 障碍先移动（实现「玩家在障碍下起跳」的效果）
-        update_character!(game, game.last_input) # 玩家再移动
-        !isempty(game.last_input) && (game.last_input = "") # 有输入⇒重置输入
+        # 有输入⇒重置输入
+        update_character!(game) # 玩家再移动（注意：不仅仅要响应输入，还要有重力机制）
+        !isempty(game.last_input) && (game.last_input = "") # 重置输入
         response(game) # 发送反馈
         render(game) # 渲染
     end
@@ -109,8 +112,7 @@ begin "游戏逻辑"
     function update_obstacles!(game::LeapGame)
         
         # 障碍移动（减过去，试探，撞了⇒加回来）
-        game.obstacle_x -= 1 # x坐标固定递减
-        check_collision(game) && (game.obstacle_x += 1) # 若碰撞了，则不动
+        !player_be_blocked(game) && (game.obstacle_x -= 1) # 若不会碰撞，则x坐标固定递减
 
         # 显示范围在超出后方的，消失&重置
         game.obstacle_x < -game.scroll_range && reset_obstacles!(game)
@@ -120,8 +122,8 @@ begin "游戏逻辑"
     处理角色状态更新
     根据用户输入和游戏规则，更新角色的位置、高度和状态
     """
-    function update_character!(game::LeapGame, user_input)
-        if !isempty(user_input) && game.player_y == 0 # 输入非空，且在地上
+    function update_character!(game::LeapGame)
+        if game.last_input=="up" && game.player_y == 0 # 输入非空，且在地上
             game.player_y += game.player_jump_strength
         else
             # 处理重力
@@ -187,6 +189,11 @@ begin "游戏逻辑"
         # 若需要更新，则打印
         if render ≠ game.last_render
             cls()
+            # 打印地面：使用「带格式字符」反色打印
+            printstyled(
+                " " ^ scroll_length(game) * "\n"; 
+                reverse=true # 反色「从黑到白」
+                )
             print(render) # 一次性打印
             game.last_render = render
             # 打印地面：使用「带格式字符」反色打印
@@ -196,9 +203,9 @@ begin "游戏逻辑"
                 )
         end
     end
-end
-
-begin "接口"
+    
+    "检测玩家是否撞到障碍：使用相对坐标"
+    player_be_blocked(game::LeapGame) = check_collision(game, 1, game.player_y)
 
     """
     初始化游戏
@@ -207,26 +214,33 @@ begin "接口"
         reset_obstacles!(game) # 重新生成障碍
     end
 
+end
+
+begin "接口"
+
     """
     请求输入
     - 对接：遍历环境的所有操作
     """
-    function request_input(game::LeapGame)
-        # readline(stdin) # 中断命令行，等待回车
-        # "1" # 只要回车，就算做「有输入」
-
-        # 遍历所有操作
-        for (i, agent, op, n) in operations_itor(game.env_link)
-            if n > 0 && op == Operation"up"
-                return nameof(op) # 有响应
-                @info "agent operation..."
-            end
+    function update_input!(game::LeapGame)
+        # 获取执行的第一个操作（操作快照）
+        nars::Agent = game.env_link[:nars]
+        operation::Operation = operation_snapshot!(
+            nars, 
+            # VALID_OPERATIONS # 为了引入「valid」合法性奖励机制
+            )
+        # 合法性奖惩
+        if operation ∈ VALID_OPERATIONS
+            praise!(nars, Goal"valid")
+        else
+            punish!(nars, Goal"valid")
         end
-        # 无操作：babble⇒延时⇒返回空值
-        agent_babble(game.env_link)
-        @info "agent babble..."
-        sleep(1)
-        return ""
+
+        return game.last_input = operation |> nameof
+        # # 无操作：babble⇒延时⇒返回空值
+        # agent_babble(game.env_link)
+        # @info "agent babble..."
+        # sleep(1)
     end
 
     """
@@ -234,8 +248,11 @@ begin "接口"
     【20230716 10:07:58】实时游戏中是否需要？
     """
     function response(game::LeapGame)
-        @show 1
-        @soft_isnothing_property(game.env_link) && isAlive(game.env_link) && update!(game.env_link) # 环境更新
+        !(@soft_isnothing_property(game.env_link)) && isAlive(game.env_link) && agent_update!(
+            game.env_link,
+            game, # 📌最终到钩子「agent_sensor_hook!」的参数集是「collecter, agent, game」，会被自动前置两个参数
+            # true, # 【20230721 23:02:04】是否能引入babble，尚存疑问
+        ) # 环境更新
     end
 
 end
@@ -243,15 +260,36 @@ end
 begin "NARS环境实现"
 
     "所有合法操作之名"
-    const OPERATION_NAMES::Vector{String} = [
+    const VALID_OPERATIONS::Vector{Operation} = [
         "up"
-    ]
+    ] .|> Operation
 
-    "（对接）"
-    function agent_sensor_hook!(collector::Vector{Perception}, agent::Agent, game::LeapGame)
-        @show collector agent game
-        # push!(collector, Perception"test"other)
-        # 暂时不使用感知：游戏只有对「操作之后」的反馈，而没有「实时状态」的更新
+    const POSITIVE_GOALS::Vector{Goal} = [
+        "good"
+        "valid"
+    ] .|> Goal
+
+    """
+    （对接）babble钩子 背景本能系统
+    """
+    function agent_babble_hook!(agent::Agent, perceptions::Vector{Perception})::Vector{Operation}
+        @show Operation[]
+    end
+
+    "（对接）感知钩子"
+    function agent_sensor_hook!(collector::Vector{Perception}, agent::Agent, game::LeapGame, others...)
+        # 反馈：玩家被阻挡
+        if player_be_blocked(game)
+            push!(collector, Perception"blocked"SELF) # 【20230721 23:06:21】TODO：是否「一直输入正向感知」会让系统固化？还是说，时间机制会解决一切？
+            punish!(agent, Goal"good") # 被阻挡：惩罚
+        elseif game.obstacle_x == 0 # 玩家在通过障碍的过程中：奖励
+            praise!(agent, Goal"good")
+        end
+        # 反馈：玩家在地上
+        if game.player_y == 0
+            push!(collector, Perception"ground"SELF)
+        end
+        return nothing # 可以返回
     end
 
     "（对接）初始化Environment：注册Agent（只初始化一次）"
@@ -263,36 +301,29 @@ begin "NARS环境实现"
         # 构造对象，注册Agent
         game.env_link = Environment{Symbol}(
             :nars => Agent(
+                # 类型和路径
                 NARSType(isnothing(type_name) ? inputType() : type_name),
                 isnothing(executable_path) ? input() : executable_path;
+                # babble钩子
                 # babble_hook = agent_babble_hook # TODO
+                # 批量注册感知器
+                sensors = AbstractSensor[
+                    SensorBasic(
+                        agent_sensor_hook!
+                    )
+                ],
+                # 批量置入目标
+                goals = Tuple{Goal,Bool}[
+                    (goal_name, false)
+                    for goal_name in POSITIVE_GOALS
+                ],
+                # 批量注册操作
+                operations = Dict{Operation, Unsigned}([
+                    operation => 0
+                    for operation::Operation in VALID_OPERATIONS
+                ])
             )
         )
-        # 批量置入目标
-        for goalname::String in [
-            "good" # 所谓「达到目的」
-            "valid" # 有效性
-            ]
-            agent_register!(
-                game.env_link,
-                Goal(goalname),
-                false # is_negative？？！
-            )
-        end
-        # 批量注册感知器
-        agent_register!(
-            game.env_link,
-            SensorBasic( # 似乎可以变化？
-                agent_sensor_hook!
-            )
-        )
-        # 批量注册操作
-        for operation_name::AbstractString in OPERATION_NAMES
-            agent_register!(
-                game.env_link,
-                Operation(operation_name)
-            )
-        end
         # 启动
         activate_all_agents!(game.env_link)
     end

@@ -42,7 +42,7 @@ begin "游戏逻辑"
         last_input::String # 上一个输入信号
         last_render::String # 上一个渲染（用于减少重复渲染）
 
-        "构造函数：设置其中的常量"
+        "构造方法：设置其中的常量"
         function LeapGame(
             scroll_range::Integer,
             obstacle_RNG::NTuple{3},
@@ -66,10 +66,6 @@ begin "游戏逻辑"
 
     "启动游戏"
     function launch!(game::LeapGame)
-        # 异步请求输入
-        @async while true
-            game.last_input = request_input(game)
-        end
         # 开始游戏主程序
         while true
             update!(game)
@@ -79,9 +75,11 @@ begin "游戏逻辑"
 
     "游戏的单次循环"
     function update!(game::LeapGame)
+        update_input!(game) # 请求输入
         update_obstacles!(game) # 障碍先移动（实现「玩家在障碍下起跳」的效果）
-        update_character!(game, game.last_input) # 玩家再移动
-        !isempty(game.last_input) && (game.last_input = "") # 有输入⇒重置输入
+        # 有输入⇒重置输入
+        update_character!(game) # 玩家再移动（注意：不仅仅要响应输入，还要有重力机制）
+        !isempty(game.last_input) && (game.last_input = "") # 重置输入
         response(game) # 发送反馈
         render(game) # 渲染
     end
@@ -101,8 +99,7 @@ begin "游戏逻辑"
     function update_obstacles!(game::LeapGame)
         
         # 障碍移动（减过去，试探，撞了⇒加回来）
-        game.obstacle_x -= 1 # x坐标固定递减
-        check_collision(game) && (game.obstacle_x += 1) # 若碰撞了，则不动
+        !player_be_blocked(game) && (game.obstacle_x -= 1) # 若不会碰撞，则x坐标固定递减
 
         # 显示范围在超出后方的，消失&重置
         game.obstacle_x < -game.scroll_range && reset_obstacles!(game)
@@ -112,8 +109,8 @@ begin "游戏逻辑"
     处理角色状态更新
     根据用户输入和游戏规则，更新角色的位置、高度和状态
     """
-    function update_character!(game::LeapGame, user_input)
-        if !isempty(user_input) && game.player_y == 0 # 输入非空，且在地上
+    function update_character!(game::LeapGame)
+        if !isempty(game.last_input) && game.player_y == 0 # 输入非空，且在地上
             game.player_y += game.player_jump_strength
         else
             # 处理重力
@@ -179,6 +176,11 @@ begin "游戏逻辑"
         # 若需要更新，则打印
         if render ≠ game.last_render
             cls()
+            # 打印地面：使用「带格式字符」反色打印
+            printstyled(
+                " " ^ scroll_length(game) * "\n"; 
+                reverse=true # 反色「从黑到白」
+                )
             print(render) # 一次性打印
             game.last_render = render
             # 打印地面：使用「带格式字符」反色打印
@@ -188,9 +190,9 @@ begin "游戏逻辑"
                 )
         end
     end
-end
-
-begin "接口"
+    
+    "检测玩家是否撞到障碍：使用相对坐标"
+    player_be_blocked(game::LeapGame) = check_collision(game, 1, game.player_y)
 
     """
     初始化游戏
@@ -198,13 +200,18 @@ begin "接口"
     function init!(game::LeapGame)
         reset_obstacles!(game) # 重新生成障碍
     end
+end
+
+begin "接口"
 
     """
     请求输入
     """
-    function request_input(game::LeapGame)
-        readline(stdin) # 中断命令行，等待回车
-        "1" # 只要回车，就算做「有输入」
+    function update_input!(game::LeapGame)
+        @async begin
+            readline(stdin) # 中断命令行，等待回车
+            game.last_input = "up" # 只要回车，就算做「有输入」
+        end
     end
 
     """

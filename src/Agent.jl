@@ -4,9 +4,6 @@
 module NARSAgent
 
 # 导入
-using Reexport
-@reexport import Base: copy, similar, put!, empty!
-
 using ..NARSElements
 
 import ..CIN: getNARSType, getRegister, has_hook, out_hook!, isAlive, terminate!, cycle! # 仅import能为函数添加方法
@@ -21,7 +18,8 @@ export has_hook, use_hook, out_hook!
 export isAlive, terminate!, cycle!, activate!, update!
 export goals, register!, praise!, punish!
 export getOperations, numStoredOperations, remind_operations, 
-       store!, reduce!, clear_stored_operations, operations_itor
+       store!, reduce!, clear_stored_operations, operations_itor,
+       operation_snapshot!
 export babble, babble!
 
 begin "Agent Stats"
@@ -33,30 +31,43 @@ begin "Agent Stats"
         total_unconscious_operations::Unsigned
     end
 
-    "默认构造函数：产生空值"
-    Agent_Stats() = Agent_Stats(0,0,0)
+    "默认构造方法：产生空值"
+    Agent_Stats() = Agent_Stats(0, 0, 0)
+
+    "析构函数"
+    function Base.finalize(stats::Agent_Stats)
+        empty!(stats)
+    end
 
     "复制一个统计对象（struct不会默认派发到copy方法）"
-    copy(stats::Agent_Stats) = Agent_Stats(
+    Base.copy(stats::Agent_Stats) = Agent_Stats(
         stats.total_sense_inputs,
         stats.total_initiative_operations,
         stats.total_unconscious_operations,
     )
 
     "清空统计数据"
-    function empty!(stats::Agent_Stats)
+    function Base.empty!(stats::Agent_Stats)
         stats.total_sense_inputs = 0
         stats.total_initiative_operations = 0
         stats.total_unconscious_operations = 0
     end
 end
 
+# 静态（全局）变量
+
+ENABLE_INFO::Bool = true
+
 begin "Agent"
 
-    """从CIN到交互的示例2：NARS智能体（无需可变）
+    """
+    从CIN到交互的示例2：NARS智能体（无需可变）
     - 🎯面向游戏调用
     - 📄内置Agent
     - 🔬展示「如何封装CIN」的高级例子
+
+    【20230721 11:04:57】因其对象的「引用」性质，采用「不可变类型」定义
+    - 可能的缺点：其引用无法在析构函数中被删去，故垃圾回收可能有问题
     """
     struct Agent
 
@@ -87,57 +98,75 @@ begin "Agent"
         - 功能：在Agent「尚未能自主决策」时，调用该「必定能决策」的系统
         - 默认情况：随机选取
         """
-        babble_hook::Function # 是否要为了「让其可变」而让整个类mutable？
+        babble_hook::Function
 
-        "正常构造函数"
-        function Agent(
-            type::NARSType, 
-            executable_path::String; # 内部构造函数可以接受关键字参数
-            cycle_speed::Integer=1,
-            babble_hook::Function=babble, # 占位符
-            )
-            
-            # 先构造自身
-            agent = new(
-                CINProgram(
-                    type, # 传入Agent
-                    executable_path, # 可执行文件路径
-                    identity, # 占位符
-                ),
-                Tuple{Goal,Bool}[], # 空值
-                AbstractSensor[], # 空值
-                Dict{Operation, Unsigned}(),
-                Agent_Stats(), # 空值（注意：结构体的new不支持关键字参数，）
-                cycle_speed, # 强行使用关键字参数则报错：「syntax: "new" does not accept keyword arguments around 」
-                babble_hook,
-            )
-            
-            # 闭包传输（需要先定义agent）
-            out_hook!(agent, line -> use_hook(agent, line))
-
-            return agent
-        end
-
-        # 需要在内部构造函数中使用，在外部则只能访问到上面那个构造函数
-        "复制一份副本（所有变量，包括统计），但不启动"
-        Agent(agent::Agent) = new(
-            copy(agent.program), # 复制程序
-            copy(agent.goals),
-            copy(agent.sensors),
-            copy(agent.operations),
-            copy(agent.stats),
-            agent.cycle_speed,
-            agent.babble_hook,
-        )
     end
+
+    """
+    正常（外部）构造方法：提供默认值
+    - 📝内部构造方法new不支持关键字参数
+        - 强行使用关键字参数则报错：「syntax: "new" does not accept keyword arguments around 」
+    - 📝Julia建议的「构造方法」分工：
+        - 内部构造方法：用于「参数约束」「错误检查」
+        - 外部构造方法：用于「提供默认值」「类型转换」
+    
+    > [!中文文档](https://docs.juliacn.com/latest/manual/constructors/)
+    > 提供尽可能少的内部构造方法是一种良好的形式：
+    > 仅在需要显式地处理所有参数，以及强制执行必要的错误检查和转换时候才使用内部构造。
+    > 其它用于提供便利的构造方法，比如提供默认值或辅助转换，应该定义为外部构造函数，然后再通过调用内部构造函数来执行繁重的工作。
+    > 这种解耦是很自然的。
+    """
+    function Agent(
+        type::NARSType, 
+        executable_path::String;
+        cycle_speed::Integer = 1,
+        babble_hook::Function = babble, # 占位符（默认方法）
+        goals::Vector{Tuple{Goal,Bool}} = Tuple{Goal,Bool}[], # 默认为空
+        sensors::Vector{AbstractSensor} = AbstractSensor[], # 默认为空
+        operations::Dict{Operation, Unsigned} = Dict{Operation, Unsigned}(), # 默认为空
+        stats::Agent_Stats = Agent_Stats(), # 默认构造
+        )
+        
+        # 先构造自身
+        agent = Agent(
+            CINProgram(
+                type, # 传入Agent
+                executable_path, # 可执行文件路径
+                identity, # 占位符
+            ),
+            goals, # 空值
+            sensors, # 空值
+            operations, # 操作集
+            stats,
+            cycle_speed,
+            babble_hook,
+        )
+        
+        # 再闭包传输（需要先定义agent），内联其中的Program而不改变Agent本身
+        out_hook!(agent, line -> use_hook(agent, line))
+
+        return agent
+    end
+
+    # 需要在内部构造方法中使用，在外部则只能访问到上面那个构造方法
+    "复制一份副本（所有变量，包括统计），但不启动"
+    Agent(agent::Agent) = new(
+        copy(agent.program), # 复制程序
+        copy(agent.goals),
+        copy(agent.sensors),
+        copy(agent.operations),
+        copy(agent.stats),
+        agent.cycle_speed,
+        agent.babble_hook,
+    )
 
     begin "方法区"
 
         #= 存取 =#
 
-        "复制副本（见构造函数）"
-        copy(agent::Agent)::Agent = Agent(agent)
-        similar(agent::Agent)::Agent = copy(agent)
+        "复制副本（见构造方法）"
+        Base.copy(agent::Agent)::Agent = Agent(agent)
+        Base.similar(agent::Agent)::Agent = copy(agent)
 
         #= Program继承 =#
 
@@ -163,16 +192,16 @@ begin "Agent"
         terminate!(agent::Agent) = terminate!(agent.program)
         
         "同Program（使用参数展开，让Program自行派发）"
-        put!(agent::Agent, input::String) = put!(agent.program, input)
+        Base.put!(agent::Agent, input::String) = put!(agent.program, input)
 
         "针对「可变长参数」的多项输入（派发到最上方put）" # 不强制inputs的类型
-        function put!(agent::Agent, input1, input2, inputs...) # 不强制Nothing
+        function Base.put!(agent::Agent, input1, input2, inputs...) # 不强制Nothing
             # 使用多个input参数，避免被派发到自身
             put!(agent, (input1, input2, inputs...))
         end
     
         "针对「可变长参数」的多项输入（派发到最上方put）" # 不强制inputs的类型
-        function put!(agent::Agent, inputs::Union{Vector,Tuple}) # 不强制Nothing
+        function Base.put!(agent::Agent, inputs::Union{Vector,Tuple}) # 不强制Nothing
             # 注意：Julia可变长参数存储在Tuple而非Vector中
             for input ∈ inputs
                 # @show input typeof(input)
@@ -190,12 +219,12 @@ begin "Agent"
 
         "默认输出钩子（包括agent对象「自身」）"
         function use_hook(agent::Agent, line::String)
-            # @info "Agent catched: $line" # 【20230710 15:59:50】Game接收正常
+            # NARSAgent.ENABLE_INFO && @info "Agent catched: $line" # 【20230710 15:59:50】Game接收正常
             # try # 【20230710 16:22:45】操作捕捉测试正常
                 operation::Operation = getRegister(agent).operation_catch(line)
                 if !isempty(operation)
                     # @show operation operation.parameters # 【20230710 16:51:15】参数检验（OpenNARS）正常
-                    @info "EXE #$(agent.stats.total_initiative_operations): $operation at line「$line」"
+                    NARSAgent.ENABLE_INFO && @info "EXE #$(agent.stats.total_initiative_operations): $operation at line「$line」"
                     hook_operation!(agent, operation)
                 end
             # catch e
@@ -208,13 +237,32 @@ begin "Agent"
             launch!(agent.program) # 启动CIN程序
         end
 
-        """更新智能体本身
+        """
+        更新智能体本身
         返回：更新中获取到的所有感知
         """
         function update!(agent::Agent, sense_targets...; sense_targets_kw...)::Vector{Perception}
             perceptions::Vector{Perception} = update_sensors!(agent, sense_targets...; sense_targets_kw...) # 更新感知器
             update_goals!(agent) # 更新目标
             cycle!(agent) # 推理步进
+            return perceptions
+        end
+
+        """
+        更新智能体本身，但加上「无操作⇒babble」的逻辑
+        
+        📝若用关键字参数重载，可能会影响派发逻辑：导致「新增关键字参数成必要」
+        - 添加后使用「旧的关键字参数」会报错「UndefKeywordError: keyword argument `auto_babble` not assigned」
+        - 
+        """
+        function update!(agent::Agent, auto_babble::Bool, sense_targets...; sense_targets_kw...)::Vector{Perception}
+            perceptions::Vector{Perception} = update!(agent, sense_targets...; sense_targets_kw...) # 调用先前的方法
+
+            # 无操作输出：检测存储的操作是否有输出⇒一直babble直到输出
+            auto_babble && if numStoredOperations(agent) <= 0
+                babble!(agent, perceptions) # 这里承诺「必然有输出？」
+            end
+
             return perceptions
         end
 
@@ -242,7 +290,7 @@ begin "Agent"
             # 收集感知
             for sensor!::AbstractSensor in agent.sensors
                 #= 向各个感知器传参传参
-                - 前两个参数固定为：收集器，Agent自身
+                - 📌传参约定：前两个参数固定为：收集器，Agent自身
                     - ⚠注意：这里*固定传入*的参数Agent，在Sensor中是「附加感知项」
                 =#
                 sensor!(result, agent, sense_targets...; sense_targets_kw...)
@@ -270,7 +318,7 @@ begin "Agent"
         )
 
         "添加目标（派发Goal）入Program"
-        function put!(agent::Agent, goal::Goal, is_negative::Bool)
+        function Base.put!(agent::Agent, goal::Goal, is_negative::Bool)
             put!(
                 agent.program,
                 getRegister(
@@ -308,12 +356,12 @@ begin "Agent"
 
         "添加感知器"
         function register!(agent::Agent, s::AbstractSensor)
-            # @info "registering..." # 【20230710 17:18:54】注册测试正常
+            # NARSAgent.ENABLE_INFO && @info "registering..." # 【20230710 17:18:54】注册测试正常
             s ∉ agent.sensors && push!(agent.sensors, s) # 考虑把sensors当做一个集合？
         end
 
         "添加感知"
-        function put!(agent::Agent, np::Perception)
+        function Base.put!(agent::Agent, np::Perception)
             put!(
                 agent.program,
                 getRegister(
@@ -327,17 +375,11 @@ begin "Agent"
         "返回所有已注册的操作（类列表形式，可collect）"
         getOperations(agent::Agent)::Base.KeySet = keys(agent.operations)
 
-        """返回所有操作的迭代器（不论存量是否为零）"""
-        operations_itor(agent::Agent) = (
-            (op, num)
-            for (op,num) in agent.operations
-        )
-
         "返回缓存的操作数量（值的总和）"
         numStoredOperations(agent::Agent)::Integer = agent.operations |> values |> sum
 
         "添加无意识操作（用Operation重载put!，对应PyNEI的put_unconscious_operation）入Program" # TODO：是否可以将其和put!整合到一起？（put一个操作）
-        function put!(agent::Agent, op::Operation)
+        function Base.put!(agent::Agent, op::Operation)
             put!(
                 agent.program,
                 getRegister(
@@ -375,7 +417,7 @@ begin "Agent"
                 agent.operations[operation] += num
             else
                 agent.operations[operation] = num
-                # @info "Registered new operation as key: $operation"
+                # NARSAgent.ENABLE_INFO && @info "Registered new operation as key: $operation"
             end
         end
 
@@ -384,12 +426,15 @@ begin "Agent"
             store!(agent, operation, -num)
         end
 
-        "清除已存储的操作"
-        function clear_stored_operations(agent::Agent)
-            for key in keys(agent.operations)
+        "清除已存储的操作：限定范围"
+        function clear_stored_operations(agent::Agent, op_range)
+            for key in op_range
                 agent.operations[key] = 0
             end
         end
+
+        "清除已存储的操作（上面版本的特例），并支持Nothing空置（用例见下）"
+        clear_stored_operations(agent::Agent, ::Nothing=Nothing) = clear_stored_operations(agent, keys(agent.operations))
 
         "处理CIN输出的操作"
         function hook_operation!(agent::Agent, operation::Operation)
@@ -425,6 +470,39 @@ begin "Agent"
                     operations |> rand
                 ]
             )
+        end
+
+        begin "对接应用"
+
+            """
+            返回所有操作的迭代器（不论存量是否为零）
+            - 📌格式约定：(操作, 操作次数)
+            """
+            operations_itor(agent::Agent) = (
+                (op, num)
+                for (op,num) in agent.operations
+            )
+
+            """
+            操作快照：遍历获取到第一个操作，返回&清除已存储的操作
+            - filterSet：只过滤某个范围的操作
+                - 默认: nothing(无范围)，即清除所有操作
+            """
+            function operation_snapshot!(agent::Agent, filterSet=nothing)::Operation
+                for op in (
+                    isnothing(filterSet) ? 
+                    keys(agent.operations) : 
+                    intersect(filterSet, keys(agent.operations))
+                    )
+                    if agent.operations[op] > 0 # 若有存储过操作
+                        NARSAgent.ENABLE_INFO && @info "agent $(nameof(op))!"
+                        clear_stored_operations(agent, filterSet) # 清空其它操作
+                        return op
+                    end
+                end
+                # 找不到：返回空操作
+                return Operation""
+            end
         end
     end
 end
