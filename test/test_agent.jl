@@ -89,9 +89,10 @@ using JuNEI.Utils
     @show agent.operations
 
     @test [
-        # Operation(:pick, "{SELF}", "{t001}")
-        Operation(:pick, "{SELF}", "{t002}") # 主要还是拿
-        # Operation(:pick, "{SELF}", "{t003}")
+        # Operation(Symbol("go-to"), "{SELF}", "{t003}") # 自己 去到 t003（桌子）
+        Operation(:pick, "{SELF}", "{t002}") # （主要）自己 拿 t002（钥匙）
+        # Operation(Symbol("go-to"), "{SELF}", "{t001}") # 自己 去到 t001（门）
+        # Operation(:open, "{SELF}", "{t001}") # 自己 打开 t001（门）
     ] ⊆ keys(agent.operations)
 
     terminate!(agent)

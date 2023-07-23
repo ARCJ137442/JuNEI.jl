@@ -1,10 +1,20 @@
 module Utils
 
-using Reexport # 使用reexport自动重新导出
+#= 📄资料 from Claude 2
+So in summary, Reexport lets you easily re-export parts of other modules's APIs. 
+This avoids naming conflicts between modules
+    and allows combining exported symbols 
+    from multiple modules conveniently. 
+The @reexport macro handles the underlying mechanics.
+=#
+using Reexport
+# 📝使用「Re-export」在using的同时export其中export的所有对象，避免命名冲突
 
 begin "宏辅助"
 
-    export @reverse_dict_content, @soft_isnothing_property, @exceptedError, @recursive
+    export @reverse_dict_content, @soft_isnothing_property,
+           @exceptedError, @softrun,
+           @recursive, @include_N_reexport
     
     """
     基本代码拼接
@@ -124,6 +134,111 @@ begin "宏辅助"
         ]...) # 别忘展开
     end
 
+    "用于给代码自动加「try-catch」"
+    macro softrun(expr)
+        quote
+            try
+                $expr
+            catch e
+                @error e
+            end
+        end
+    end
+
+    """
+    从数组/非数组表达式中，固定获取一个数组
+    - 表达式头为「列表」vect/hcat/vcat：返回其args
+    - 其它情况：返回包含其本身的数组
+    """
+    collect_vec_expr(ex)::Array = (
+        ex isa Expr && ex.head in (
+            :vect, # [1,2,3]
+            :hcat, # [1 2 3]
+            :vcat, # [1\n2\n3]
+        )
+    ) ? ex.args : [ex]
+
+    """
+    从数组/非数组表达式中，固定获取一个数组
+    - 表达式头为「列表」vect/hcat/vcat：返回其args
+    - 其它情况：返回包含其本身的数组
+    
+    源例1：
+        include("Utils.jl")
+        @reexport using .Utils
+    
+    源例2：
+        for file_p::Pair{String, String} in MODULE_FILES
+
+            # include指定文件（使用@__DIR__动态确定绝对路径）
+            @eval \$(joinpath(@__DIR__, file_p.first)) |> include
+            
+            # reexport「导入又导出」把符号全导入的同时，对外暴露
+            @eval @reexport using .\$(Symbol(file_p.second))
+        end
+    """
+    collect_pair(ex::Expr)::Union{Tuple,Nothing} = (
+        ex.head == :call &&
+        ex.args[1] == :(=>)
+    ) ? (ex.args[2], ex.args[3]) : nothing
+
+    """
+    尝试用宏的形式简化代码，提高可读性但可能降低速度
+    - 本质：导入路径⇒复用&重导出模块
+
+    等效代码：
+
+    ```
+    include("Interface/CIN.jl")
+    @reexport using .CIN
+
+    include("Interface/Console.jl")
+    @reexport using .NARSConsole
+    ```
+    """
+    macro include_N_reexport(module_file_pairs::Expr)
+        code::Expr = Expr(:block)
+        # 📌不能用__source__.file：只能定位到根目录，不支持相对路径
+        # 在源模块执行「@__DIR__」宏，以获取项目根目录（以项目根目录为准）
+        base_path::String = __source__.file |> string |> dirname |> string
+
+        pairs::Array = collect_vec_expr(module_file_pairs)
+        for pairEx in pairs
+            pair::Union{Tuple,Nothing} = collect_pair(pairEx)
+            if !isnothing(pair)
+                # 先include
+                for file_path in collect_vec_expr(pair[1])
+                    push!(
+                        code.args,
+                        Expr(
+                            :call,
+                            :include, # 函数名
+                            joinpath(base_path, file_path)
+                        )
+                    )
+                end
+                for module_name in collect_vec_expr(pair[2])
+                    push!(
+                        code.args,
+                        Reexport.reexport( # 📌直接调用Reexport的「AST变换函数」，这样让调用者无需再引入Reexport
+                            __module__,
+                            Expr( # 等价于「Meta.parse("using .$module_name")」
+                                :using,
+                                Expr(
+                                    :(.), # 头
+                                    :(.), #真正的「.」
+                                    Symbol(module_name)
+                                )
+                            )
+                        )
+                    )
+                end
+            end
+        end
+
+        # @show code __module__
+        return code |> esc # 先不解析
+    end
 end
 
 begin "统计学辅助：动态更新算法"
@@ -313,7 +428,7 @@ end
 begin "========一些OOP宏========"
 
     export @redefine_show_to_to_repr, @abstractMethod, @WIP, 
-           @super, @wrap_link_in, @generate_gset_link
+           @super, wrap_link_in, @wrap_link_in, generate_gset_link, @generate_gset_link
 
     """
     重定义show方法到repr
@@ -407,7 +522,7 @@ begin "========一些OOP宏========"
         - 只能在**无内部构造方法定义**时使用原装构造方法，方可为不可变类型设置「嵌入对象」
         - 无法很好处理「原结构的文档字符串」（block对象无法@doc）⇒拆分实现
     """
-    macro wrap_link_in(link_prop_def::Expr, struct_def::Expr)
+    function wrap_link_in(link_prop_def::Expr, struct_def::Expr)::Expr
         # 表达式头「struct」
         struct_head::Symbol = struct_def.head
         @assert struct_head==:struct "Expression '$struct_head' ≠ ':struct'!" # 断言
@@ -424,11 +539,16 @@ begin "========一些OOP宏========"
         # 📌生成区块Expr(:block, 各代码块)也不是不行，但为了兼容「文档字符串」暴露struct，只能拆分
         struct_def |> esc # 📌不使用esc则「立即解析」const报错「expected assignment after "const" around [...]」
     end
+
+    "宏版本"
+    macro wrap_link_in(link_prop_def::Expr, struct_def::Expr)
+        wrap_link_in(link_prop_def, struct_def)
+    end
     
     """
     （独立成宏）追加定义两个方法，用于读写原结构的「嵌入对象」
     """
-    macro generate_gset_link(struct_name::Symbol, link_prop_def::Expr)
+    function generate_gset_link(struct_name::Symbol, link_prop_def::Expr)::Expr
     
         # 外加属性参数：`env_prop_name::env_type_name`
         link_prop_name::Symbol, link_type_name::Symbol = link_prop_def.args
@@ -455,6 +575,11 @@ begin "========一些OOP宏========"
             #     $struct_name(args..., $env_prop_name; args_kw...)
             # end
         end |> esc # 避免被立即解析
+    end
+
+    "宏版本"
+    macro generate_gset_link(struct_name::Symbol, link_prop_def::Expr)
+        generate_gset_link(struct_name, link_prop_def)
     end
 end
 

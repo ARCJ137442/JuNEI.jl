@@ -11,19 +11,12 @@
 """
 module CIN
 
-using Reexport
-
-using ..Utils
-using ..NAL
-using ..NARSElements
-
-# 导入注册表的「数据结构」
-using Reexport
-
-include("CIN/templates.jl")
-@reexport using .Templates # 重新导出，但也可「按需索取」只using CIN.Templates
+using ...Support
+# using ..NARSElements
 
 # 导出
+
+export NARSType, @NARSType_str, inputType, unsafe_inputType
 
 export CINProgram, CINCmdline, CINJuliaModule
 export has_hook, use_hook, out_hook!
@@ -33,8 +26,60 @@ export getNARSType, getRegister # async_read_out
 export add_to_cmd!, cycle!
 export cached_inputs, cache_input!, num_cached_input, cache_input!, clear_cached_input!, flush_cached_input!
 
-export @CINRegister_str # ?可以移动到templates里？
+begin "NARSType"
+    
+    # 不适合用@enum
+    """
+    NARSType：给出CIN的类型标识符
+    - 【20230723 14:11:26】不解耦的原因：CIN四处都会用到
+    """
+    struct NARSType
+        name::String
+    end
+        
+    begin "转换用方法（名称，不需要字典）" # 实际上这相当于「第一行使用字符串」的表达式，但「无用到可以当注释」
+        
+        "NARS类型→名称"
+        Base.nameof(nars_type::NARSType)::String = nars_type.name
+        Base.string(nars_type::NARSType)::String = Base.nameof(nars_type)
+        Base.convert(::Core.Type{String}, nars_type::NARSType) = Base.nameof(nars_type)
 
+        "名称→NARS类型"
+        Base.convert(::Core.Type{NARSType}, type_name::String) = NARSType(type_name)
+        # 注：占用枚举类名，也没问题（调用时返回「ERROR: LoadError: UndefVarError: `NARSType` not defined」）
+        "名称→NARS类型（直接用宏调用）"
+        macro NARSType_str(type_name::String)
+            :($(NARSType(type_name))) # 与其运行时报错，不如编译时就指出来
+        end
+
+        "特殊打印格式：与宏相同"
+        Base.repr(nars_type::NARSType) = "NARSType\"$(Base.nameof(nars_type))\"" # 注意：不能直接插值，否则「StackOverflowError」
+        @redefine_show_to_to_repr nars_type::NARSType
+
+        "检测非空"
+        function Base.isempty(nars_type::NARSType)::Bool
+            isempty(nars_type.name)
+        end
+
+        "非健壮输入（合法的）NARSType"
+        function unsafe_inputType(prompt::AbstractString="")::NARSType
+            return prompt |> input |> NARSType
+        end
+        
+        "健壮输入NARSType"
+        function inputType(prompt::AbstractString="")::NARSType
+            while true
+                try
+                    return prompt |> input |> NARSType
+                catch
+                    printstyled("Invalid Input!\n", color=:red)
+                end
+            end
+        end
+        
+    end
+
+end
 
 begin "CINProgram" # 使用这个「代码块」将功能相近的代码封装到一起
     
@@ -97,9 +142,13 @@ begin "CINProgram" # 使用这个「代码块」将功能相近的代码封装�
 
     "暴露一个「获取CIN类型」的外部接口（convert容易忘）"
     getNARSType(program::CINProgram)::NARSType = program.type
-
-    "通过CIN直接获得「NARS语句模板」（convert容易忘）"
-    getRegister(program::CINProgram)::CINRegister = convert(CINRegister, program) # 通过convert实现
+    
+    """
+    "通过CIN直接获得「NARS语句模板」（convert容易忘，也容易造成耦合）"
+    - 【20230723 14:00:47】目的：解耦——通过「函数声明」摆脱CIN本身对Register的依赖
+    - 实现参考: Register/CINRegistry.jl
+    """
+    function getRegister end
     
     "（API）添加输入（NAL语句字符串）：对应PyNEI的「write_line」"
     Base.put!(program::CINProgram, input::String) = @abstractMethod
@@ -202,7 +251,7 @@ begin "CINCmdline"
         isempty(cmd.executable_path) && error("empty executable path!")
 
         # 输入初始指令 ？是要在cmd中启动，还是直接在命令中启动？
-        startup_cmds::Tuple{Cmd,Vector{String}} = cmd.executable_path |> (cmd |> CINRegister).exec_cmds
+        startup_cmds::Tuple{Cmd,Vector{String}} = cmd.executable_path |> (cmd |> getRegister).exec_cmds
 
         launch_cmd::Cmd = startup_cmds[1]
 
@@ -368,71 +417,7 @@ begin "CINJuliaModule"
 
 end
 
-# 先注册直接使用Julia代码的实现
-include("CIN/register_Junars.jl")
-
-# 「具体CIN注册」交给下面的jl：抽象接口与具体注册分离
-CIN_REGISTER_DICT::Dict = include("CIN/register.jl")
-#= 功能：定义CIN注册字典，存储与「具体CIN实现」的所有信息
-- CIN_REGISTER_DICT：NARSType→CINRegister
-注：使用include，相当于返回其文件中的所有代码
-- 故可以在该文件中返回一个Dict，自然相当于把此Dict赋值给变量CIN_REGISTER_DICT
-- 从而便于管理变量名（无需分散在两个文件中）
-=#
-
-#= 注：不把以下代码放到templates.jl中，因为：
-- Program要用到NARSType
-- 以下代码要等Register注册
-- Register要等Program类声明
-因此不能放在一个文件中
-=#
-begin "注册后的一些方法（依赖注册表）"
-
-    "检验NARSType的有效性：是否已被注册"
-    Base.isvalid(nars_type::NARSType)::Bool = nars_type ∈ keys(CIN_REGISTER_DICT) # 访问字典键值信息，用方法而不用属性（否则报错：#undef的「access to undefined reference」）
-
-    "Type→Register（依赖字典）"
-    function Base.convert(::Core.Type{CINRegister}, type::NARSType)::CINRegister
-        CIN_REGISTER_DICT[type]
-    end
-
-    "名称→Type→Register（依赖字典）"
-    function Base.convert(::Core.Type{CINRegister}, type_name::String)::CINRegister
-        CIN_REGISTER_DICT[NARSType(type_name)]
-    end
-
-    "Program→Type：复现PyNEI中CINProgram的「type」属性"
-    function Base.convert(::Core.Type{NARSType}, program::CINProgram)::NARSType
-        return program.type
-    end
-
-    "Type→Program类" # 尽可能用Julia原装方法
-    function Base.convert(::Core.Type{Core.Type}, nars_type::NARSType)::Core.Type
-        CIN_REGISTER_DICT[nars_type].program_type
-    end
-    
-    "Type→Program：复现PyNEI中的CINProgram.fromType函数（重载外部构造方法）"
-    function CINProgram(nars_type::NARSType, args...; kwargs...)::CINProgram
-        # 获得构造方法
-        type_program = Base.convert(Core.Type, nars_type) # 「Core.Type{CINProgram}」会过于精确而报错「Cannot `convert` an object of type Type{CINProgram_OpenNARS} to an object of type Type{CINProgram}」
-        # 调用构造方法
-        type_program(nars_type, args...; kwargs...) # 目前第一个参数是NARSType
-    end
-
-    "Program→Type→Register（复现Python中各种「获取模板」的功能）" # 尽可能用Julia原装方法
-    function Base.convert(::Core.Type{CINRegister}, program::CINProgram)::CINRegister
-        CIN_REGISTER_DICT[convert(NARSType, program)]
-    end
-
-    "派发NARSType做构造方法"
-    function CINRegister(nars_type::NARSType)
-        Base.convert(CINRegister, nars_type)
-    end
-
-    "派发Program做构造方法"
-    function CINRegister(program::CINProgram)
-        Base.convert(CINRegister, program)
-    end
-end
+# 注册对接OpenJunars的实现
+include("CIN/OpenJunars.jl")
 
 end

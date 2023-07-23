@@ -3,10 +3,11 @@ push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 
 using Test
 
-using JuNEI.NARSElements
-using JuNEI.CIN
+using JuNEI.Embodied.NARSElements
+using JuNEI.Interface.CIN
+using JuNEI.Register
 
-"================Test for CIN Templates================" |> println
+"================Test for Register================" |> println
 
 @testset "CIN Templates" begin
     # NARSType

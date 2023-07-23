@@ -1,53 +1,41 @@
-module JuNEI
-
-# 📝使用「Re-export」在using的同时export其中export的所有对象，避免命名冲突
-using Reexport
-#= 📄资料 from Claude 2
-So in summary, Reexport lets you easily re-export parts of other modules's APIs. 
-This avoids naming conflicts between modules
-    and allows combining exported symbols 
-    from multiple modules conveniently. 
-The @reexport macro handles the underlying mechanics.
-=#
-
 """
-更新时间: 20230717 22:23:41
+JuNEI的主体部分
+
+更新时间: 20230723 10:13:36
 
 模块层级总览
 - JuNEI
-    - Utils
-    - NAL
-    - NARSElements
-    - CIN
-        - Templates
-    - Console
-    - Agent
-    - Environment
+    - Support
+        - Utils
+        - NAL
+    - Embodied
+        - Agent
+        - Environment
+        - NARSElements
+    - Interface
+        - CIN
+            - Templates
+            - register
+        - Console
+
+规范：
+- 大模块的附属代码，统一存放在其同名文件夹中
+    - 细节分类&文件名规范
+        - 首字母大写：独立的Module
+        - 首字母小写：被include的代码
 """
+module JuNEI
 
-"直接使用「模块文件名 => 模块名」存储要include、using的模块信息"
-const MODULE_FILES::Vector{Pair{String,String}} = [
-    "Utils.jl"          =>      "Utils"
-    "NAL.jl"            =>      "NAL"
-    "Elements.jl"       =>      "NARSElements"
-    "CIN.jl"            =>      "CIN"
-    "Console.jl"        =>      "NARSConsole"
-    "Agent.jl"          =>      "NARSAgent"
-    "Environment.jl"    =>      "NARSEnvironment"
+# 要使用「导出下面宏的模块」
+include("Support.jl")
+using .Support # 目前不打算导出
+
+# 批量include&reexport
+@include_N_reexport [
+    "Interface.jl"      =>      "Interface"
+    "Embodied.jl"       =>      "Embodied"
+    "Register.jl"       =>      "Register"
 ]
-
-#= 使用eval批量导入 原例：
-include("Utils.jl")
-@reexport using .Utils
-=#
-for file_p::Pair{String, String} in MODULE_FILES
-
-    # include指定文件（使用@__DIR__动态确定绝对路径）
-    @eval $(joinpath(@__DIR__, file_p.first)) |> include
-    
-    # reexport「导入又导出」把符号全导入的同时，对外暴露
-    @eval @reexport using .$(Symbol(file_p.second))
-end
 
 "包初始化：从Project.toml中获取&打印包信息"
 function __init__() # 【20230717 22:23:10】💭很仿Python
@@ -66,7 +54,6 @@ function __init__() # 【20230717 22:23:10】💭很仿Python
     )
 end
 
-# using .CIN.Templates # 【20230717 22:19:54】这个应该在最初using时就已导入了
 "使用PackageCompiler打包时的主函数"
 function julia_main()::Cint
 

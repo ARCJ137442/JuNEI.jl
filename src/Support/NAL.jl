@@ -15,7 +15,7 @@ NAL元素(WIP)
 """
 module NAL
 
-using ..Utils # 使用上级模块（JuNEI）的Utils
+using ..Utils # 使用上级模块（Support）的Utils
 
 # ！统一在文件开头导出，而非在各个begin-end中export
 export AbstractTerm, Term

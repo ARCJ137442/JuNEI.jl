@@ -1,13 +1,11 @@
 """
 进一步封装：NARS与外界对接时的「智能体」角色
 """
-module NARSAgent
 
 # 导入
-using ..NARSElements
 
-import ..CIN: getNARSType, getRegister, has_hook, out_hook!, isAlive, terminate!, cycle! # 仅import能为函数添加方法
-using ..CIN
+import ..Interface.CIN: getNARSType, getRegister, has_hook, out_hook!, isAlive, terminate!, cycle! # 仅import能为函数添加方法
+using ..Interface.CIN
 
 # 导出
 
@@ -53,10 +51,6 @@ begin "Agent Stats"
         stats.total_unconscious_operations = 0
     end
 end
-
-# 静态（全局）变量
-
-ENABLE_INFO::Bool = true
 
 begin "Agent"
 
@@ -173,8 +167,8 @@ begin "Agent"
         "同Program"
         getNARSType(agent::Agent)::NARSType = getNARSType(agent.program)
         
-        "同Program"
-        getRegister(agent::Agent)::CINRegister = getRegister(agent.program)
+        "同Program（不使用`::CINRegister`以实现代码解耦）"
+        getRegister(agent::Agent) = getRegister(agent.program)
     
         "同Program"
         has_hook(agent::Agent)::Bool = has_hook(agent.program)
@@ -219,12 +213,12 @@ begin "Agent"
 
         "默认输出钩子（包括agent对象「自身」）"
         function use_hook(agent::Agent, line::String)
-            # NARSAgent.ENABLE_INFO && @info "Agent catched: $line" # 【20230710 15:59:50】Game接收正常
+            # ENABLE_INFO && @info "Agent catched: $line" # 【20230710 15:59:50】Game接收正常
             # try # 【20230710 16:22:45】操作捕捉测试正常
                 operation::Operation = getRegister(agent).operation_catch(line)
                 if !isempty(operation)
                     # @show operation operation.parameters # 【20230710 16:51:15】参数检验（OpenNARS）正常
-                    NARSAgent.ENABLE_INFO && @info "EXE #$(agent.stats.total_initiative_operations): $operation at line「$line」"
+                    Embodied.ENABLE_INFO && @info "EXE #$(agent.stats.total_initiative_operations): $operation at line「$line」"
                     hook_operation!(agent, operation)
                 end
             # catch e
@@ -356,7 +350,7 @@ begin "Agent"
 
         "添加感知器"
         function register!(agent::Agent, s::AbstractSensor)
-            # NARSAgent.ENABLE_INFO && @info "registering..." # 【20230710 17:18:54】注册测试正常
+            # Embodied.ENABLE_INFO && @info "registering..." # 【20230710 17:18:54】注册测试正常
             s ∉ agent.sensors && push!(agent.sensors, s) # 考虑把sensors当做一个集合？
         end
 
@@ -417,7 +411,7 @@ begin "Agent"
                 agent.operations[operation] += num
             else
                 agent.operations[operation] = num
-                # NARSAgent.ENABLE_INFO && @info "Registered new operation as key: $operation"
+                # Embodied.ENABLE_INFO && @info "Registered new operation as key: $operation"
             end
         end
 
@@ -426,15 +420,25 @@ begin "Agent"
             store!(agent, operation, -num)
         end
 
-        "清除已存储的操作：限定范围"
+        "清除已存储的操作：默认所有"
+        function clear_stored_operations(agent::Agent)
+            for key in keys(agent.operations)
+                agent.operations[key] = 0
+            end
+        end
+
+        """
+        清除已存储的操作：限定范围
+        - ⚠注意：此处直接将对应键置零以平衡效率，可能会新增键值对
+        """
         function clear_stored_operations(agent::Agent, op_range)
             for key in op_range
                 agent.operations[key] = 0
             end
         end
 
-        "清除已存储的操作（上面版本的特例），并支持Nothing空置（用例见下）"
-        clear_stored_operations(agent::Agent, ::Nothing=Nothing) = clear_stored_operations(agent, keys(agent.operations))
+        "支持「空置」：利用多分派而非类型判断(isnothing)"
+        clear_stored_operations(agent::Agent, ::Nothing) = clear_stored_operations(agent, keys(agent.operations))
 
         "处理CIN输出的操作"
         function hook_operation!(agent::Agent, operation::Operation)
@@ -488,14 +492,26 @@ begin "Agent"
             - filterSet：只过滤某个范围的操作
                 - 默认: nothing(无范围)，即清除所有操作
             """
-            function operation_snapshot!(agent::Agent, filterSet=nothing)::Operation
-                for op in (
-                    isnothing(filterSet) ? 
-                    keys(agent.operations) : 
-                    intersect(filterSet, keys(agent.operations))
-                    )
+            function operation_snapshot!(agent::Agent, filterSet)::Operation
+                for op in intersect(filterSet, keys(agent.operations)) # 交集以确认其被存储过
                     if agent.operations[op] > 0 # 若有存储过操作
-                        NARSAgent.ENABLE_INFO && @info "agent $(nameof(op))!"
+                        Embodied.ENABLE_INFO && @info "agent $(nameof(op))!"
+                        clear_stored_operations(agent, filterSet) # 清空其它操作
+                        return op
+                    end
+                end
+                # 找不到：返回空操作
+                return Operation""
+            end
+
+            """
+            当「过滤集」空置时的版本
+            - 利用多分派机制，减少类型判断
+            """
+            function operation_snapshot!(agent::Agent, filterSet::Nothing=nothing)::Operation
+                for op in keys(agent.operations)
+                    if agent.operations[op] > 0 # 若有存储过操作
+                        Embodied.ENABLE_INFO && @info "agent $(nameof(op))!"
                         clear_stored_operations(agent, filterSet) # 清空其它操作
                         return op
                     end
@@ -505,6 +521,4 @@ begin "Agent"
             end
         end
     end
-end
-
 end

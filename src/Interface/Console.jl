@@ -3,10 +3,10 @@ CIN封装示例：可调用的控制台窗口
 """
 module NARSConsole
 
-using ..Utils
-using ..CIN
+using ...Support.Utils
 
 import ..CIN: launch!, terminate!, out_hook!
+using ..CIN
 
 export Console
 export launch!, console!

@@ -21,4 +21,3 @@ struct Sentence
     punct::Symbol # 有效值参照上面Dict
     statement::AbstractStatement
 end
-

@@ -1,23 +1,5 @@
-"""「NARS环境」：对接Agent与游戏文件
-- 🎯减少「Agent与游戏环境间对接」所需要的代码量
-    - 尽可能减少「代码对接」对游戏源码的修改量
-- 主要用法
-    1. 游戏复合一个Environment对象
-        1. Game向Environment注册Agent
-            - 由Environment自动创建新Agent
-            - Game创建Agent，并与Environment对接
-        2. 
-    2. 游戏在对应事件中，
-        1. 游戏信息@Game → Perception ⇒ Environment ⇒ Agent
-        2. Operation@Agent ⇒ Environment ⇒ 响应@Game
-"""
-module NARSEnvironment
-
 # 导入
-using ..NARSElements
-using ..NARSAgent
-
-import ..NARSAgent: isAlive, operations_itor # 重名覆盖
+# import ..NARSAgent: isAlive, operations_itor # 重名覆盖 【20230723 15:47:53】现在取消了「独立模块」
 
 # 导出
 export Environment
@@ -28,11 +10,25 @@ export agent_babble!, agent_praise!, agent_punish!, agent_put!, agent_register!,
 export operations_itor, agent_operation_snapshot!
 export @wrap_env_link, @generate_gset_env_link, get_env_link, set_env_link
 
+# 📌单独导入，以免其它地方报错
+using ...Support.Utils: wrap_link_in, generate_gset_link
 
 begin "Environment"
 
-    """NARS环境
+    """
+    NARS环境：对接Agent与游戏文件
     - 使用泛型指定Agent的标识符
+    - 🎯减少「Agent与游戏环境间对接」所需要的代码量
+        - 尽可能减少「代码对接」对游戏源码的修改量
+    - 主要用法
+        1. 游戏复合一个Environment对象
+            1. Game向Environment注册Agent
+                - 由Environment自动创建新Agent
+                - Game创建Agent，并与Environment对接
+            2. 
+        2. 游戏在对应事件中，
+            1. 游戏信息@Game → Perception ⇒ Environment ⇒ Agent
+            2. Operation@Agent ⇒ Environment ⇒ 响应@Game
     """
     struct Environment{Identifier}
 
@@ -116,12 +112,12 @@ begin "Environment"
 
     "打包「环境链接」：参照「wrap_link_in」，这里默认使用「env_link::Environment」作为「嵌入对象」"
     macro wrap_env_link(struct_def::Expr)
-        :(@wrap_link_in env_link::Environment $struct_def) |> esc
+        wrap_link_in(:(env_link::Environment), struct_def)
     end
 
     "第二部分：追加读写链接方法"
     macro generate_gset_env_link(struct_name::Symbol)
-        :(@generate_gset_link $struct_name env_link::Environment) |> esc
+        generate_gset_link(struct_name, :(env_link::Environment))
     end
 
     "声明但不初始化"
@@ -157,7 +153,7 @@ begin "Environment"
     """
     function register_agent!(env::Environment{Identifier}, i::Identifier, agent::Agent) where Identifier
         push!(env.agents, i => agent) # 若「重名」会自动覆盖掉
-        # @info "Agent $agent at :$i registered!" # 【20230710 15:56:04】测试正常
+        # Embodied.ENABLE_INFO && @info "Agent $agent at :$i registered!" # 【20230710 15:56:04】测试正常
     end
 
     """创建并自动注册Agent
@@ -447,6 +443,4 @@ begin "Environment"
             )
         end
     end
-end
-
 end

@@ -6,70 +6,13 @@
 """
 module Templates
 
-import ..Utils: input, @redefine_show_to_to_repr
+import ...Support.Utils: input, @redefine_show_to_to_repr
 
 # 导出
 
-export NARSType, @NARSType_str, inputType, unsafe_inputType
 export CINRegister, @CINRegister_str
 
-
-begin "NARSType"
-    
-    # 不适合用@enum
-    """NARSType：已支持CIN类型
-    """
-    struct NARSType
-        name::String
-    end
-        
-    begin "转换用方法（名称，不需要字典）" # 实际上这相当于「第一行使用字符串」的表达式，但「无用到可以当注释」
-        
-        "NARS类型→名称"
-        Base.nameof(nars_type::NARSType)::String = nars_type.name
-        Base.string(nars_type::NARSType)::String = Base.nameof(nars_type)
-        Base.convert(::Core.Type{String}, nars_type::NARSType) = Base.nameof(nars_type)
-
-        "名称→NARS类型"
-        Base.convert(::Core.Type{NARSType}, type_name::String) = NARSType(type_name)
-        # 注：占用枚举类名，也没问题（调用时返回「ERROR: LoadError: UndefVarError: `NARSType` not defined」）
-        "名称→NARS类型（直接用宏调用）"
-        macro NARSType_str(type_name::String)
-            :($(NARSType(type_name))) # 与其运行时报错，不如编译时就指出来
-        end
-
-        "特殊打印格式：与宏相同"
-        Base.repr(nars_type::NARSType) = "NARSType\"$(Base.nameof(nars_type))\"" # 注意：不能直接插值，否则「StackOverflowError」
-        @redefine_show_to_to_repr nars_type::NARSType
-
-        "检测非空"
-        function Base.isempty(nars_type::NARSType)::Bool
-            isempty(nars_type.name)
-        end
-
-        "非健壮输入（合法的）NARSType"
-        function unsafe_inputType(prompt::AbstractString="")::NARSType
-            return prompt |> input |> NARSType
-        end
-        
-        "健壮输入NARSType"
-        function inputType(prompt::AbstractString="")::NARSType
-            while true
-                try
-                    return prompt |> input |> NARSType
-                catch
-                    printstyled("Invalid Input!\n", color=:red)
-                end
-            end
-        end
-        
-    end
-
-end
-
 begin "CINRegister"
-
-    import ...NAL: SUBJECT_SELF_STR, TERM_SELF_STR # 注意：当前模块嵌套目录是JuNEI.CIN.Templates，所以要三个点回退到NAL
 
     """CINRegister
     注册与相应类型所对应的模板、处理函数
@@ -119,6 +62,9 @@ begin "CINRegister"
         cycle::Function # Integer -> String
 
     end
+
+    "外部构造方法：可迭代对象⇒参数展开"
+    CINRegister(args::Union{Tuple, Vector}) = CINRegister(args...)
 
     "名称→NAL语句模板（直接用宏调用）"
     macro CINRegister_str(type_name::String)

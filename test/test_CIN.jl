@@ -4,16 +4,7 @@ push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 using Test
 
 using JuNEI.CIN
-
-macro softrun(expr)
-    quote
-        try
-            $expr
-        catch e
-            @error e
-        end
-    end
-end
+using JuNEI.Register
 
 "================Test for CIN================" |> println
 

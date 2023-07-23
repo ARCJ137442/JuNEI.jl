@@ -6,6 +6,7 @@ push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
 push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 
 import JuNEI
+using Test
 
 ENV["JULIA_DEBUG"] = JuNEI # 启用DEBUG模式
 
@@ -17,7 +18,7 @@ const TEST_FILE_LIST::Vector{String} = [
     "test_utils.jl"
     "test_nal.jl"
     "test_elements.jl"
-    "test_templates.jl"
+    "test_register.jl"
     "test_CIN.jl"
     "test_junars.jl"
     "test_multiprocess.jl"
@@ -25,6 +26,6 @@ const TEST_FILE_LIST::Vector{String} = [
     "test_console.jl"
 ]
 
-for file::String in TEST_FILE_LIST
+@testset for file::String in TEST_FILE_LIST
     @eval include($file)
 end

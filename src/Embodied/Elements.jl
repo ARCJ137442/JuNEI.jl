@@ -3,8 +3,6 @@
 
 在不同CIN（NARS计算机实现）中，找到一个「共通概念」，用这些「共通概念」打造不同CIN的沟通桥梁
 
-- (WIP)Term 词项
-    - 【20230716 21:39:11】？是否需要以此整一个「NAL孪生」，自己实现一遍NAL语句解析
 - Goal 目标
 - Perception 感知
 - Operation 操作
@@ -13,8 +11,7 @@
 """
 module NARSElements
 
-using ..Utils # 一个「.」表示当前模块下，两个「.」表示上一级模块下
-using ..NAL
+using ...Support # .当前模块⇒..Embodied⇒...JuNEI⇒「JuNEI.Support」
 
 #= 📝向Base已有的函数中添加方法的渠道
 1. 导入Base，并向Base函数中添加方法

@@ -7,7 +7,7 @@
 begin "CINOpenJunars"
     
     # 在此处export，保证完整性
-    export CINJunars
+    export CINJunars, TYPE_JUNARS
     # export cached_inputs, cache_input!, num_cached_input, cache_input!, clear_cached_input!, flush_cached_input! # 母文件已经导入
     export showtracks
 

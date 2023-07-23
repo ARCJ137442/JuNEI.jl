@@ -14,7 +14,9 @@ push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
 push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
 
 using JuNEI
-NARSAgent.ENABLE_INFO = false # 关闭信息输出如「@info ...」
+using JuNEI.Support # 启用辅助库
+
+# JuNEI.Embodied.ENABLE_INFO = false # 关闭信息输出如「@info ...」
 
 begin "实用工具"
     
@@ -219,7 +221,7 @@ end
 begin "接口"
 
     """
-    请求输入
+    更新输入
     - 对接：遍历环境的所有操作
     """
     function update_input!(game::LeapGame)
@@ -227,14 +229,14 @@ begin "接口"
         nars::Agent = game.env_link[:nars]
         operation::Operation = operation_snapshot!(
             nars, 
-            # VALID_OPERATIONS # 为了引入「valid」合法性奖励机制
+            VALID_OPERATIONS # 为了引入「valid」合法性奖励机制 【20230723 17:37:55】TODO 目前游戏中出现一个bug：中途暂停，操作语句继续接收，但游戏无响应
             )
-        # 合法性奖惩
-        if operation ∈ VALID_OPERATIONS
-            praise!(nars, Goal"valid")
-        else
-            punish!(nars, Goal"valid")
-        end
+        # # 合法性奖惩
+        # if operation ∈ VALID_OPERATIONS
+        #     praise!(nars, Goal"valid")
+        # else
+        #     punish!(nars, Goal"valid")
+        # end
 
         return game.last_input = operation |> nameof
         # # 无操作：babble⇒延时⇒返回空值
@@ -266,7 +268,7 @@ begin "NARS环境实现"
 
     const POSITIVE_GOALS::Vector{Goal} = [
         "good"
-        "valid"
+        # "valid"
     ] .|> Goal
 
     """
