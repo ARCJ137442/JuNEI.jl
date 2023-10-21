@@ -1,7 +1,8 @@
 push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
 push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
+push!(LOAD_PATH, "../") # 用于从cmd打开
 
-@show not_VSCode_running::Bool = "test" ⊆ pwd()
+not_VSCode_running::Bool = "test" ⊆ pwd()
 
 using JuNEI
 

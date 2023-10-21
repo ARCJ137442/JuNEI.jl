@@ -45,16 +45,98 @@ mutable struct Console
     end
 end
 
+using JSON: json
 "默认输出钩子（包括console对象「自身」）"
 function use_hook(console::Console, line::String)
     console.launched && println(line)
+    # 发送到客户端 #
+    # 解析—— # TODO: 后续交给NAVM
+    global  server, connectedSocket
+    if !isnothing(server)
+        objs = []
+        head = findfirst(r"\w+:", line) # EXE: XXXX
+        if !isnothing(head)
+            type = line[head][begin:end-1]
+            content = line[last(head)+1:end]
+            @show line
+            push!(objs, Dict(
+                "interface_name" => "JuNEI",
+                 "output_type" => type,
+                 "content" => content
+                ))
+                @show objs
+            # 传输
+            for ws in connectedSocket
+                send(ws, json(objs))
+            end
+        end
+    end
 end
 
+"配置WS服务器信息"
+function configServer(console::Console)::Console
+    needServer = !isempty(input("Server? (\"\") "))
+    if needServer
+        host = input("Host (127.0.0.1): ")
+        host = !isempty(host) ? host : "127.0.0.1"
+
+        port = tryparse(Int, input("Port (8765): "))
+        port = isnothing(port) ? 8765 : port
+
+        launchWSServer(console, host,port)
+    end
+    return console
+end
+
+try
+    using SimpleWebsockets: WebsocketServer, Condition, listen, notify, serve, send
+catch e
+    @warn "JuNEI: 包「SimpleWebsockets」未能成功导入，WebSocket服务将无法使用！"
+end
+server = nothing
+connectedSocket = []
+function launchWSServer(console::Console, host::String, port::Int)
+
+    global server, connectedSocket
+    server = WebsocketServer()
+    ended = Condition()
+
+    listen(server, :client) do ws
+
+        # Julia自带侦听提示
+        @info "Websocket connection established with ws=$ws"
+        push!(connectedSocket, ws)
+
+        listen(ws, :message) do message
+            # 直接处理
+            put!(console.program, message)
+        end
+
+        listen(ws, :close) do reason
+            @warn "Websocket connection closed" reason...
+            notify(ended)
+        end
+
+    end
+
+    listen(server, :connectError) do err
+        notify(ended, err, error = true)
+    end
+
+    @show server
+
+    @async serve(server, port, host)
+    # wait(ended) # ! 实际上可以直接异步
+end
+
+"启动终端"
 function launch!(console::Console)
     launch!(console.program) # 启动CIN程序
+    configServer(console)
     console!(console)
 end
 
+"开始终端循环"
 function console!(console::Console)
     while true
         console.launched = true
@@ -63,8 +145,7 @@ function console!(console::Console)
     end
 end
 
-function terminate!(console::Console)
-    terminate!(console.program)
-end
+"终止终端"
+terminate!(console::Console) = terminate!(console.program)
 
 end
