@@ -74,16 +74,24 @@ function use_hook(console::Console, line::String)
 end
 
 "配置WS服务器信息"
-function configServer(console::Console)::Console
-    needServer = !isempty(input("Server? (\"\") "))
+function configServer(
+    console::Console, 
+    host::Union{AbstractString,Nothing}=nothing, 
+    port::Union{Int,Nothing}=nothing,
+)::Console
+    needServer = !isnothing(host) || !isnothing(port) || !isempty(input("Server? (\"\") "))
     if needServer
-        host = input("Host (127.0.0.1): ")
-        host = !isempty(host) ? host : "127.0.0.1"
+        if isnothing(host)
+            hostI = input("Host (127.0.0.1): ")
+            host = !isempty(hostI) ? hostI : "127.0.0.1"
+        end
 
-        port = tryparse(Int, input("Port (8765): "))
-        port = isnothing(port) ? 8765 : port
+        if isnothing(port)
+            port = tryparse(Int, input("Port (8765): "))
+            port = isnothing(port) ? 8765 : port
+        end
 
-        launchWSServer(console, host,port)
+        launchWSServer(console, host, port)
     end
     return console
 end
@@ -130,9 +138,13 @@ function launchWSServer(console::Console, host::String, port::Int)
 end
 
 "启动终端"
-function launch!(console::Console)
+function launch!(
+    console::Console, 
+    host::Union{AbstractString,Nothing}=nothing, 
+    port::Union{Int,Nothing}=nothing,
+)
     launch!(console.program) # 启动CIN程序
-    configServer(console)
+    configServer(console, host, port)
     console!(console)
 end
 
