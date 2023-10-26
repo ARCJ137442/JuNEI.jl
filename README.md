@@ -19,6 +19,7 @@
   - 「NAL」部分**拆分外包**：
     - 与Narsese直接相关的，交给[**JuNarsese**](https://github.com/ARCJ137442/JuNarsese.jl)与[**JuNarseseParsers**](https://github.com/ARCJ137442/JuNarseseParsers.jl)
   - 外部的「游戏」部分**停止更新**：单一的呈现环境（命令行）已无法满足调试需要
+- ❓目前 *executables* 目录下的可执行文件似乎需要外置为Artifacts
 
 ## Concept 概念
 
@@ -28,7 +29,7 @@
 
 ## Preparation 预备
 
-1. Julia 1.9.1+
+1. [Julia](https://julialang.org/) 1.9.1+
 
 ## Feature 特性
 
@@ -46,6 +47,30 @@
   - 对使用Julia/Python模块交互的CIN：
     - 异步导入所用模块
     - 通过专门的「接口代码文件」调用模块类型&方法
+
+## Quick Start 快速开始
+
+### 启动终端
+
+要通过JuNEI启动（任意一个CIN）终端，可以通过「控制台」`Console`进行相关启动
+
+📌启动代码已内置到了`test_console.jl`中，在系统安装有`Julia`的情况下，可以通过以下命令启动
+
+```bash
+cd 【JuNEI文件夹根目录】
+julia test/test_console.jl
+```
+
+在启动过程中，脚本会提示输入CIN类型（OpenNARS/ONA/NARS-Python/...），只需选择一个即可
+
+⚠️注意：某些CIN有**额外环境要求**
+
+- OpenNARS（`opennars.jar`）：需要**Java运行时**（[Oracle官网下载](https://www.oracle.com/java/technologies/downloads/)）
+- ONA（`NAR.exe`）：需要**Cygwin**（[中文官网下载](http://www.cygwin.cn/site/install/)）
+
+### 快速启动OpenNARS Websocket服务器
+
+要启动OpenNARS Websocket服务器，只需在[启动终端](#启动终端)的基础上，**将其中的`test_console.jl`换成`test_console_OpenNARS.jl`即可**
 
 ## References 参考
 

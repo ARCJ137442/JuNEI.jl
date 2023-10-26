@@ -1,6 +1,7 @@
 {
     "conventionalCommits.scopes": [
-        "控制台"
+        "控制台",
+        "README"
     ],
     "workbench.colorTheme": "Julia (Monokai Vibrant)"
 }
