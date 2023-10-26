@@ -220,6 +220,12 @@ end
 
 begin "接口"
 
+    "距离上一次操作所过去的「更新次数」"
+    execute_decay::UInt = 100
+
+    "从「最后一次（自主）操作」到babble的「次数阈值」"
+    babble_threshold::UInt = 100
+
     """
     更新输入
     - 对接：遍历环境的所有操作
@@ -231,6 +237,7 @@ begin "接口"
             nars, 
             VALID_OPERATIONS # 为了引入「valid」合法性奖励机制 【20230723 17:37:55】TODO 目前游戏中出现一个bug：中途暂停，操作语句继续接收，但游戏无响应
             )
+        
         # # 合法性奖惩
         # if operation ∈ VALID_OPERATIONS
         #     praise!(nars, Goal"valid")
@@ -238,11 +245,26 @@ begin "接口"
         #     punish!(nars, Goal"valid")
         # end
 
-        return game.last_input = operation |> nameof
-        # # 无操作：babble⇒延时⇒返回空值
-        # agent_babble(game.env_link)
-        # @info "agent babble..."
-        # sleep(1)
+        # 判断非空⇒时间累计/重置 #
+        global execute_decay
+        # 无操作⇒累积⇒babble
+        if operation === EMPTY_Operation
+            execute_decay += 1
+            if execute_decay > babble_threshold
+                # 广播babble，没有任何感知
+                agent_babble!(game.env_link, Perception[])
+                printstyled("BABBLE!"; color=:light_yellow, bold=true)
+                sleep(0.5)
+            end
+            # 返回空值
+            return ""
+            # 有操作⇒重置计时 & 返回操作
+        else
+            execute_decay = 0
+            printstyled("Agent Operated! operation=$operation\n"; color=:light_green, bold=true)
+            sleep(0.5)
+            return game.last_input = nameof(operation)
+        end
     end
 
     """
@@ -274,8 +296,8 @@ begin "NARS环境实现"
     """
     （对接）babble钩子 背景本能系统
     """
-    function agent_babble_hook!(agent::Agent, perceptions::Vector{Perception})::Vector{Operation}
-        @show Operation[]
+    function agent_babble_hook(agent::Agent, perceptions::Vector{Perception})::Vector{Operation}
+        @show Operation[rand(VALID_OPERATIONS)]
     end
 
     "（对接）感知钩子"
@@ -307,7 +329,7 @@ begin "NARS环境实现"
                 NARSType(isnothing(type_name) ? inputType() : type_name),
                 isnothing(executable_path) ? input() : executable_path;
                 # babble钩子
-                # babble_hook = agent_babble_hook # TODO
+                babble_hook = agent_babble_hook, # TODO
                 # 批量注册感知器
                 sensors = AbstractSensor[
                     SensorBasic(

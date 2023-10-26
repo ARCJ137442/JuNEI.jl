@@ -1,4 +1,4 @@
-"用于快速启动交互式CIN控制台（带有可选的Websocket服务器）"
+"用于快速启动OpenNARS服务端，可通过「命令行」与「Websocket」双通道输入指令"
 
 push!(LOAD_PATH, "../src") # 用于直接打开（..上一级目录）
 push!(LOAD_PATH, "src") # 用于VSCode调试（项目根目录起）
@@ -12,7 +12,7 @@ using JuNEI
 
 while true
     # type::NARSType = NARSType"ONA"
-    global type::NARSType = not_VSCode_running ? inputType("NARS Type(OpenNARS/ONA/Python/Junars): ") : NARSType"ONA"
+    global type::NARSType = NARSType"OpenNARS" # not_VSCode_running ? inputType("NARS Type(OpenNARS/ONA/Python/Junars): ") : NARSType"ONA"
     isempty(type) && (type = NARSType"ONA")
     # 检验合法性
     isvalid(type) && break
@@ -40,4 +40,4 @@ console = Console(
     "JuNEI.$(nameof(type))> ",
 )
 
-not_VSCode_running && launch!(console)
+not_VSCode_running && launch!(console, "127.0.0.1", 8765)

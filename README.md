@@ -6,6 +6,20 @@
 - 原型：[ARCJ137442/NARS-FighterPlane](https://github.com/ARCJ137442/NARS-FighterPlane) v2.i_alpha
 - Python版本(移植来源，现无暇维护)：[ARCJ137442/NARS-PyNEI](https://github.com/ARCJ137442/PyNEI)
 
+## Author's Note 作者注
+
+- 本实现作为从PyNEI迁移过来的版本，在功能上与PyNEI并无太大差异，但代码组织上更清晰，且能更好地支持各大接口特性。
+- 因作者目前（2023-10-26）的工作重点转移到了「AI虚拟环境」上，所以该接口的定位发生了变化：
+  - 「接口」部分：整体退居幕后
+    - 目前以「服务器」的形式被使用，用于**对接用其它语言编写的虚拟环境**
+    - 代码体现：如`Console`类型的`launch!`方法
+    - 🚩未来将对「跨CIN指令输入」使用[**NAVM**](https://github.com/ARCJ137442/NAVM.jl)
+  - 「具身」部分**暂停维护**：
+    - 核心转移为「通信」上（体现同上）
+  - 「NAL」部分**拆分外包**：
+    - 与Narsese直接相关的，交给[**JuNarsese**](https://github.com/ARCJ137442/JuNarsese.jl)与[**JuNarseseParsers**](https://github.com/ARCJ137442/JuNarseseParsers.jl)
+  - 外部的「游戏」部分**停止更新**：单一的呈现环境（命令行）已无法满足调试需要
+
 ## Concept 概念
 
 - NARS: Non-Axiomatic Reasoning System | 非公理推理系统
@@ -33,8 +47,6 @@
     - 异步导入所用模块
     - 通过专门的「接口代码文件」调用模块类型&方法
 
-## Author's Note 作者注
-
 ## References 参考
 
 NARS计算机实现
@@ -44,8 +56,8 @@ NARS计算机实现
 - NARS-Python: <https://github.com/ccrock4t/NARS-Python>
 - OpenJunars: <https://github.com/AIxer/OpenJunars>
 
-NARS+ & 游戏Domo
+NARS+ & 游戏Demo
 
 - NARS-Pong in Unity3D: <https://github.com/ccrock4t/NARS-Pong>
-- NARS-FighterPlane by Boyang Xu: <https://github.com/Noctis-Xu/NARS-FighterPlane>
+- NARS-FighterPlane by BoYang Xu: <https://github.com/Noctis-Xu/NARS-FighterPlane>
 - ARCJ137442/NARS-FighterPlane: <https://github.com/ARCJ137442/NARS-FighterPlane>

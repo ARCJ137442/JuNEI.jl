@@ -38,7 +38,7 @@ begin "原子词项"
     
     """
     所有「原子词项」的抽象基类
-    - 理论来源：《Non-Axiomic-Language》，《NAL》
+    - 理论来源：《Non-Axiomatic-Language》，《NAL》
 
     > 「The basic form of a term is a word, 
     > a string of letters in a finite alphabet.」
@@ -75,7 +75,7 @@ begin "原子词项"
         从「词项类型」到「环绕字符串」
         【20230717 22:56:31】暂不使用「方法派发」的方式实现：无法再后续「自动转换」中检索
         """
-        const TARM_TYPE_SURROUNDING_DICT::Dict{Type{<:AbstractAtom},String} = Dict(
+        const TERM_TYPE_SURROUNDING_DICT::Dict{Type{<:AbstractAtom},String} = Dict(
             AtomInstance => "{}",
             AtomProperty => "[]",
         )
@@ -100,7 +100,7 @@ begin "原子词项"
             function AbstractAtom(raw::String)::AbstractTerm
                 t::Tuple{Function,Function} = (first, last) # 获取头尾的函数
                 # 遍历判断
-                for (type, surrounding) in TARM_TYPE_SURROUNDING_DICT
+                for (type, surrounding) in TERM_TYPE_SURROUNDING_DICT
                     if !isempty(surrounding) && (surrounding .|> t) == (raw .|> t) # 头尾相等
                         return type(raw[2:end-1]) # 直接用类初始化
                     end
@@ -114,15 +114,15 @@ begin "原子词项"
 
             "获取词项名"
             Base.nameof(::AbstractTerm)::String = @abstractMethod
-            Base.nameof(aterm::AbstractAtom)::String = aterm.name
+            Base.nameof(aTerm::AbstractAtom)::String = aTerm.name
             
             "获取词项字符串&插值入字符串"
-            function Base.string(aterm::AbstractAtom)::String
-                surrounding::String = TARM_TYPE_SURROUNDING_DICT[aterm.type]
+            function Base.string(aTerm::AbstractAtom)::String
+                surrounding::String = TERM_TYPE_SURROUNDING_DICT[aTerm.type]
                 if !isempty(surrounding)
-                    return surrounding[1] * nameof(aterm) * surrounding[end] # 使用字符串拼接
+                    return surrounding[1] * nameof(aTerm) * surrounding[end] # 使用字符串拼接
                 end
-                nameof(aterm)
+                nameof(aTerm)
             end
 
             "快捷方式"
@@ -131,10 +131,10 @@ begin "原子词项"
             Base.string(ap::AtomProperty) = "[$(nameof(ap))]"
             
             "格式化对象输出"
-            Base.repr(aterm::AbstractTerm)::String = "<NARS Term $(string(aterm))>"
+            Base.repr(aTerm::AbstractTerm)::String = "<NARS Term $(string(aTerm))>"
             
             # "控制在show中的显示形式"
-            @redefine_show_to_to_repr aterm::AbstractTerm
+            @redefine_show_to_to_repr aTerm::AbstractTerm
             
             macro Term_str(content::String)
                 :(AbstractTerm($content))

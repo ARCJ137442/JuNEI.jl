@@ -1,5 +1,7 @@
 """
 CIN封装示例：可调用的控制台窗口
+- 可选的「外接Websocket服务器」功能
+  - 不作为直接的包依赖
 """
 module NARSConsole
 
