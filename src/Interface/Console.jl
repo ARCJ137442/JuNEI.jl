@@ -60,13 +60,11 @@ function use_hook(console::Console, line::String)
         if !isnothing(head)
             type = line[head][begin:end-1]
             content = line[last(head)+1:end]
-            @show line
             push!(objs, Dict(
                 "interface_name" => "JuNEI",
                  "output_type" => type,
                  "content" => content
                 ))
-                @show objs
             # 传输
             for ws in connectedSocket
                 send(ws, json(objs))
@@ -133,7 +131,7 @@ function launchWSServer(console::Console, host::String, port::Int)
         notify(ended, err, error = true)
     end
 
-    @show server
+    # @show server
 
     @async serve(server, port, host)
     # wait(ended) # ! 实际上可以直接异步
