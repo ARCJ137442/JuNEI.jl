@@ -27,10 +27,10 @@ mutable struct Console
     launched::Bool # 用于过滤「无关信息」
 
     Console(
-        type::NARSType, 
-        executable_path::String, 
+        type::NARSType,
+        executable_path::String,
         input_prompt::String="Input: "
-        ) = begin
+    ) = begin
         # 先构造自身
         console = new(
             CINProgram( # 使用CIN.jl/CINProgram的构造方法，自动寻找合适类型
@@ -52,31 +52,36 @@ using JSON: json
 function use_hook(console::Console, line::String)
     console.launched && println(line)
     # 发送到客户端 #
-    # 解析—— # TODO: 后续交给NAVM
-    global  server, connectedSocket
+    # * 默认解析方法
+    global server, connectedSocket
     if !isnothing(server)
         objs = []
         head = findfirst(r"\w+:", line) # EXE: XXXX
+        # 若为有效的「NARS输出类型」（非`NARSOutputType.OTHER`）
         if !isnothing(head)
             type = line[head][begin:end-1]
-            content = line[last(head)+1:end]
-            push!(objs, Dict(
-                "interface_name" => "JuNEI",
-                 "output_type" => type,
-                 "content" => content
-                ))
-            # 传输
-            for ws in connectedSocket
-                send(ws, json(objs))
-            end
+            content = line[nextind(content, last(head), 1):end]
+        else
+            type = NARSOutputType.OTHER
+            content = line
+        end
+        # 使用并传输输出
+        push!(objs, Dict(
+            "interface_name" => "JuNEI",
+            "output_type" => type,
+            "content" => content
+        ))
+        # 传输
+        for ws in connectedSocket
+            send(ws, json(objs))
         end
     end
 end
 
 "配置WS服务器信息"
 function configServer(
-    console::Console, 
-    host::Union{AbstractString,Nothing}=nothing, 
+    console::Console,
+    host::Union{AbstractString,Nothing}=nothing,
     port::Union{Int,Nothing}=nothing,
 )::Console
     needServer = !isnothing(host) || !isnothing(port) || !isempty(input("Server? (\"\") "))
@@ -128,7 +133,7 @@ function launchWSServer(console::Console, host::String, port::Int)
     end
 
     listen(server, :connectError) do err
-        notify(ended, err, error = true)
+        notify(ended, err, error=true)
     end
 
     # @show server
@@ -139,8 +144,8 @@ end
 
 "启动终端"
 function launch!(
-    console::Console, 
-    host::Union{AbstractString,Nothing}=nothing, 
+    console::Console,
+    host::Union{AbstractString,Nothing}=nothing,
     port::Union{Int,Nothing}=nothing,
 )
     launch!(console.program) # 启动CIN程序
