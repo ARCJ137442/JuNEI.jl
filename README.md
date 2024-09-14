@@ -1,5 +1,21 @@
 # NARS-Embodied-Interface NARS具身接口
 
+![GitHub License](https://img.shields.io/github/license/ARCJ137442/JuNEI?style=for-the-badge&color=a270ba)
+![Code Size](https://img.shields.io/github/languages/code-size/ARCJ137442/JuNEI?style=for-the-badge&color=a270ba)
+![Lines of Code](https://www.aschey.tech/tokei/github.com/ARCJ137442/JuNEI?style=for-the-badge&color=a270ba)
+[![Language](https://img.shields.io/badge/language-Julia-purple?style=for-the-badge&color=a270ba)](https://cn.julialang.org/)
+
+开发状态：
+
+![Created At](https://img.shields.io/github/created-at/ARCJ137442/JuNEI?style=for-the-badge)
+![Last Commit](https://img.shields.io/github/last-commit/ARCJ137442/JuNEI?style=for-the-badge)
+
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-2.0.0-%23FE5196?style=for-the-badge)](https://conventionalcommits.org)
+
+## 简介
+
+## Introduction 简介
+
 一个以 ***NARS*** 作为AI玩家，提供集成访问&调用的接口
 
 - 缩写：NEI
